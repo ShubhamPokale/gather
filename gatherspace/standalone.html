@@ -1,0 +1,2503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>GatherSpace — 2D Spatial Virtual Office</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap');
+
+    * {
+      box-sizing: border-box;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: #080c14;
+      color: #e2e8f0;
+    }
+
+    ::-webkit-scrollbar {
+      width: 5px;
+      height: 5px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.5);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(100, 116, 139, 0.5);
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(148, 163, 184, 0.8);
+    }
+
+    .key-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.6rem;
+      height: 1.6rem;
+      padding: 0 0.4rem;
+      font-size: 0.75rem;
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.22), rgba(255, 255, 255, 0.08));
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      border-radius: 6px;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+    }
+
+    @keyframes floatUpFade {
+      0% {
+        transform: translate(-50%, 0) scale(0.6);
+        opacity: 0;
+      }
+      20% {
+        transform: translate(-50%, -20px) scale(1.25);
+        opacity: 1;
+      }
+      80% {
+        transform: translate(-50%, -65px) scale(1.05);
+        opacity: 0.95;
+      }
+      100% {
+        transform: translate(-50%, -95px) scale(0.85);
+        opacity: 0;
+      }
+    }
+
+    .floating-emote {
+      animation: floatUpFade 1.8s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+      pointer-events: none;
+    }
+
+    .glass-card {
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+    }
+
+    .glass-pill {
+      background: rgba(15, 23, 42, 0.8);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    }
+
+    @keyframes speakingPulse {
+      0%, 100% {
+        box-shadow: 0 0 0 2px #22c55e, 0 0 16px rgba(34, 197, 94, 0.5);
+      }
+      50% {
+        box-shadow: 0 0 0 3px #4ade80, 0 0 24px rgba(74, 222, 128, 0.7);
+      }
+    }
+    .speaking-glow {
+      animation: speakingPulse 1.4s infinite ease-in-out;
+    }
+
+    #worldCanvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      cursor: crosshair;
+    }
+
+    .has-tooltip:hover .tooltip-pop {
+      opacity: 1;
+      transform: translateY(0) translateX(-50%);
+      pointer-events: auto;
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 select-none overflow-hidden relative w-screen h-screen">
+
+  <!-- Main Canvas Container -->
+  <div id="game-container" class="relative w-full h-full overflow-hidden">
+    <canvas id="worldCanvas"></canvas>
+  </div>
+
+  <!-- TOP BAR: Left Office Branding & Status -->
+  <div class="fixed top-4 left-4 z-30 flex items-center gap-2.5 pointer-events-auto">
+    <div class="glass-pill px-3.5 py-2 rounded-2xl flex items-center gap-3">
+      <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-indigo-600 to-violet-500 flex items-center justify-center text-white shadow-lg shadow-indigo-600/30">
+        <i class="fas fa-building text-sm"></i>
+      </div>
+      <div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-bold text-white tracking-wide">GatherSpace HQ</span>
+          <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        </div>
+        <div class="flex items-center gap-1.5 text-[11px] text-slate-400">
+          <span id="currentRoomTag" class="text-indigo-300 font-medium truncate max-w-[140px]">Welcome Lobby</span>
+          <span>•</span>
+          <span id="onlineCountTop" class="text-emerald-400 font-mono text-[10px]">6 Online</span>
+        </div>
+      </div>
+      <button id="copyInviteBtn" class="ml-2 px-2.5 py-1 text-[11px] font-semibold rounded-lg bg-slate-800/80 hover:bg-indigo-600 text-slate-300 hover:text-white border border-slate-700/80 transition-all flex items-center gap-1.5 active:scale-95" title="Copy space URL">
+        <i class="fas fa-link text-[10px]"></i>
+        <span>Invite</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- TOP BAR: Center Floating Video Strip -->
+  <div id="videoBar" class="fixed top-4 left-1/2 -translate-x-1/2 flex items-center gap-3 z-30 transition-all duration-300 max-w-[85vw] overflow-x-auto px-2 py-1 scrollbar-none pointer-events-auto">
+    <!-- Local Player Video Box -->
+    <div id="localVideoCard" class="relative group w-36 h-24 sm:w-40 sm:h-24 rounded-2xl glass-card border border-indigo-500/40 overflow-hidden shadow-2xl flex-shrink-0 transition-transform duration-200 hover:scale-[1.03]">
+      <video id="webcamPreview" autoplay playsinline muted class="w-full h-full object-cover hidden"></video>
+      <div id="localAvatarPlaceholder" class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-950/80 via-slate-900 to-slate-950 text-indigo-300">
+        <div class="w-9 h-9 rounded-full bg-indigo-500/25 flex items-center justify-center text-base font-bold border border-indigo-400/30 text-indigo-300 shadow-inner">
+          <span id="localAvatarLetter">P</span>
+        </div>
+        <span class="text-[10px] font-semibold mt-1 text-slate-300">You (Me)</span>
+      </div>
+      <div class="absolute bottom-1.5 left-2 flex items-center gap-1.5 bg-black/75 px-2 py-0.5 rounded-lg text-[10px] text-white backdrop-blur-md border border-white/10">
+        <i id="localMicIcon" class="fas fa-microphone-slash text-rose-400 text-[10px]"></i>
+        <span id="localCardName" class="font-medium truncate max-w-[65px]">Player</span>
+      </div>
+      <div id="localSpeakingIndicator" class="absolute inset-0 rounded-2xl pointer-events-none transition-opacity duration-200 opacity-0 speaking-glow"></div>
+    </div>
+
+    <!-- Proximity peer videos are injected dynamically here -->
+    <div id="proximityPeerList" class="flex items-center gap-3 flex-nowrap"></div>
+  </div>
+
+  <!-- TOP RIGHT: Mini-Map -->
+  <div class="fixed top-4 right-4 z-30 flex items-start gap-2.5 pointer-events-auto">
+    <div class="glass-card rounded-2xl p-2.5 border border-slate-700/60 shadow-2xl backdrop-blur-md">
+      <div class="flex items-center justify-between mb-2 px-1 gap-3">
+        <span class="text-[11px] font-bold text-slate-300 tracking-wider flex items-center gap-1.5">
+          <i class="fas fa-compass text-indigo-400"></i> SPATIAL MAP
+        </span>
+        <span id="onlineCountBadge" class="text-[10px] bg-emerald-950/80 text-emerald-400 border border-emerald-500/30 px-1.5 py-0.5 rounded font-mono font-bold">6 Active</span>
+      </div>
+      <div class="relative w-44 h-32 bg-slate-950/90 rounded-xl overflow-hidden border border-slate-800 shadow-inner">
+        <canvas id="miniMapCanvas" width="176" height="128" class="w-full h-full block"></canvas>
+      </div>
+    </div>
+  </div>
+
+  <!-- DYNAMIC ZONE BANNER: Positioned below top bar with safe vertical clearance -->
+  <div id="zoneBanner" class="fixed top-36 left-1/2 -translate-x-1/2 z-20 pointer-events-none transition-all duration-400 opacity-0 -translate-y-3">
+    <div class="glass-pill px-5 py-2 rounded-full border border-sky-400/50 text-xs sm:text-sm font-semibold text-sky-200 flex items-center gap-3 shadow-2xl shadow-sky-950/60">
+      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-ping"></span>
+      <span id="zoneBannerText">Entered Welcome Lobby & Reception</span>
+      <span id="zonePrivacyBadge" class="bg-indigo-500/30 text-indigo-200 text-[10px] px-2.5 py-0.5 rounded-full border border-indigo-400/30 font-mono font-bold">OPEN ZONE</span>
+    </div>
+  </div>
+
+  <!-- FLOATING INTERACTION PROMPT: Bouncing key badge above bottom dock -->
+  <div id="interactPrompt" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-30 pointer-events-none transition-all duration-300 opacity-0 translate-y-2 scale-95">
+    <div class="glass-card px-5 py-2.5 rounded-2xl border border-amber-400/60 shadow-2xl shadow-amber-950/40 flex items-center gap-3 text-amber-200 text-xs sm:text-sm pointer-events-auto">
+      <span class="key-badge text-amber-300 border-amber-400/50 bg-amber-500/20">E</span>
+      <span id="promptText" class="font-semibold tracking-wide">Press E to open Whiteboard</span>
+    </div>
+  </div>
+
+  <!-- BOTTOM FLOATING DOCK -->
+  <div class="fixed bottom-4 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 sm:gap-2.5 glass-card px-3.5 py-2.5 rounded-3xl shadow-2xl pointer-events-auto">
+    <div class="relative has-tooltip">
+      <button id="toggleMicBtn" class="flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 text-rose-400 transition-all active:scale-95">
+        <i id="bottomMicIcon" class="fas fa-microphone-slash text-base sm:text-lg"></i>
+        <span class="text-[9px] text-slate-400 mt-0.5 font-medium">Mic</span>
+      </button>
+      <div class="tooltip-pop absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-white opacity-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+        Toggle Mic <span class="text-indigo-400 font-mono font-bold">[M]</span>
+      </div>
+    </div>
+
+    <div class="relative has-tooltip">
+      <button id="toggleCamBtn" class="flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 text-rose-400 transition-all active:scale-95">
+        <i id="bottomCamIcon" class="fas fa-video-slash text-base sm:text-lg"></i>
+        <span class="text-[9px] text-slate-400 mt-0.5 font-medium">Cam</span>
+      </button>
+      <div class="tooltip-pop absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-white opacity-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+        Toggle Cam <span class="text-indigo-400 font-mono font-bold">[V]</span>
+      </div>
+    </div>
+
+    <div class="relative has-tooltip">
+      <button id="toggleScreenBtn" class="flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-slate-800/90 hover:bg-slate-700/90 border border-slate-700/80 text-slate-300 transition-all active:scale-95">
+        <i class="fas fa-desktop text-base sm:text-lg"></i>
+        <span class="text-[9px] text-slate-400 mt-0.5 font-medium">Share</span>
+      </button>
+      <div class="tooltip-pop absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-white opacity-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+        Screen Share
+      </div>
+    </div>
+
+    <div class="w-px h-8 bg-slate-700/60 mx-1"></div>
+
+    <div class="flex items-center gap-1 sm:gap-1.5 px-1 bg-slate-900/60 rounded-2xl border border-slate-800/80 py-1">
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="👋" title="Wave">👋</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="👏" title="Clap">👏</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="❤️" title="Heart">❤️</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="✋" title="Raise Hand">✋</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="😂" title="Joy">😂</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="☕" title="Coffee">☕</button>
+      <button class="emote-btn text-base sm:text-xl p-1.5 hover:scale-130 active:scale-95 transition-transform" data-emote="🚀" title="Rocket">🚀</button>
+    </div>
+
+    <div class="w-px h-8 bg-slate-700/60 mx-1"></div>
+
+    <div class="relative has-tooltip">
+      <button id="toggleChatPanelBtn" class="flex flex-col items-center justify-center w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all active:scale-95 shadow-lg shadow-indigo-600/30">
+        <i class="fas fa-comment-dots text-base sm:text-lg"></i>
+        <span class="text-[9px] text-indigo-200 mt-0.5 font-medium">Panel</span>
+        <span id="unreadBadge" class="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-rose-500 text-[10px] font-bold text-white flex items-center justify-center border-2 border-slate-900 hidden">1</span>
+      </button>
+      <div class="tooltip-pop absolute -top-9 left-1/2 -translate-x-1/2 px-2.5 py-1 rounded-lg bg-slate-900 border border-slate-700 text-[10px] text-white opacity-0 transition-all duration-200 pointer-events-none whitespace-nowrap shadow-xl">
+        Toggle Panel <span class="text-indigo-400 font-mono font-bold">[C]</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SLIDE-OUT SIDE PANEL -->
+  <div id="sidePanel" class="fixed right-4 bottom-24 top-20 w-84 glass-card rounded-3xl z-40 flex flex-col border border-slate-700/70 shadow-2xl transition-all duration-300 translate-x-[115%] pointer-events-auto">
+    <div class="flex items-center border-b border-slate-800 p-2.5 gap-1.5 bg-slate-900/50 rounded-t-3xl">
+      <button id="tabChatBtn" class="flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/25">
+        <i class="fas fa-comment-dots"></i> Chat
+      </button>
+      <button id="tabPeopleBtn" class="flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5">
+        <i class="fas fa-users"></i> People
+      </button>
+      <button id="tabSettingsBtn" class="flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5">
+        <i class="fas fa-user-pen"></i> Avatar
+      </button>
+      <button id="closeSidePanelBtn" class="p-2 text-slate-400 hover:text-white rounded-xl hover:bg-slate-800 transition">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <!-- TAB 1: Chat -->
+    <div id="tabChatContent" class="flex-1 flex flex-col min-h-0 p-3.5">
+      <div class="flex bg-slate-900/90 p-1 rounded-xl mb-2.5 border border-slate-800 text-[11px] font-semibold">
+        <button id="chatScopeNearby" class="flex-1 py-1.5 rounded-lg bg-indigo-600 text-white transition-colors flex items-center justify-center gap-1.5 shadow-sm">
+          <i class="fas fa-wifi text-[10px]"></i> Nearby (Proximity)
+        </button>
+        <button id="chatScopeGlobal" class="flex-1 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5">
+          <i class="fas fa-globe text-[10px]"></i> Global (All)
+        </button>
+      </div>
+
+      <div id="chatMessages" class="flex-1 overflow-y-auto space-y-2.5 pr-1.5 text-xs">
+        <div class="text-[11px] text-center text-slate-500 py-2 border-b border-slate-800/80">
+          Walk close to colleagues to start proximity spatial chat!
+        </div>
+      </div>
+
+      <form id="chatForm" class="mt-3 flex gap-2">
+        <input id="chatInput" type="text" placeholder="Type a message (Press Enter)..." maxlength="160" autocomplete="off" class="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition-colors">
+        <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl px-3.5 py-2 text-xs transition-colors flex items-center justify-center shadow-lg shadow-indigo-600/30 active:scale-95">
+          <i class="fas fa-paper-plane"></i>
+        </button>
+      </form>
+    </div>
+
+    <!-- TAB 2: People -->
+    <div id="tabPeopleContent" class="flex-1 hidden flex-col min-h-0 p-3.5 overflow-y-auto">
+      <div class="flex items-center justify-between mb-3 text-xs font-semibold text-slate-400">
+        <span>Colleagues in Office</span>
+        <span class="text-indigo-400 font-mono text-[11px]" id="peopleListCount">6 online</span>
+      </div>
+      <div id="peopleList" class="space-y-2 text-xs"></div>
+    </div>
+
+    <!-- TAB 3: Avatar -->
+    <div id="tabSettingsContent" class="flex-1 hidden flex-col min-h-0 p-3.5 overflow-y-auto space-y-4">
+      <div class="bg-slate-900/90 p-3.5 rounded-2xl border border-slate-800 flex items-center gap-4">
+        <div id="customizerAvatarPreview" class="w-14 h-14 rounded-2xl bg-indigo-950 border-2 border-indigo-500/50 flex items-center justify-center text-2xl relative shadow-lg">
+          <span id="previewEmojiBadge" class="absolute -bottom-1 -right-1 text-sm">💻</span>
+          <div id="previewAvatarCircle" class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-bold text-sm shadow">
+            P
+          </div>
+        </div>
+        <div>
+          <h4 id="previewNameLabel" class="text-sm font-bold text-white">Player</h4>
+          <p id="previewStatusLabel" class="text-xs text-indigo-300 font-medium">Deep focus mode</p>
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Your Name</label>
+        <input id="settingNameInput" type="text" value="Player" maxlength="16" class="w-full bg-slate-900/90 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-1.5">Current Status / Mood</label>
+        <div class="flex gap-2">
+          <input id="settingStatusEmoji" type="text" value="💻" maxlength="2" class="w-12 text-center bg-slate-900/90 border border-slate-700/80 rounded-xl py-2 text-base">
+          <input id="settingStatusText" type="text" value="Deep focus mode" maxlength="28" class="flex-1 bg-slate-900/90 border border-slate-700/80 rounded-xl px-3 py-2 text-xs text-white">
+        </div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-2">Outfit Color Swatches</label>
+        <div class="grid grid-cols-5 gap-2" id="outfitPalette"></div>
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-300 mb-2">Hair Style</label>
+        <div class="grid grid-cols-4 gap-2 text-center" id="hairPalette"></div>
+      </div>
+
+      <div class="pt-3 border-t border-slate-800">
+        <label class="flex items-center justify-between text-xs text-slate-300 cursor-pointer">
+          <span class="flex items-center gap-2"><i class="fas fa-volume-high text-indigo-400"></i> Spatial Audio Effects & Steps</span>
+          <input id="soundFxToggle" type="checkbox" checked class="accent-indigo-500 w-4 h-4 rounded">
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 1: COLLABORATIVE WHITEBOARD -->
+  <div id="whiteboardModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-card w-full max-w-4xl h-[82vh] rounded-3xl border border-indigo-500/40 shadow-2xl flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/70">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-indigo-600/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center text-lg shadow-inner">
+            <i class="fas fa-pen-ruler"></i>
+          </div>
+          <div>
+            <h2 class="text-sm font-bold text-white flex items-center gap-2">
+              Collaborative Whiteboard
+              <span class="bg-indigo-500/20 text-indigo-300 text-[10px] px-2 py-0.5 rounded-full border border-indigo-400/30 font-mono">LIVE SYNC</span>
+            </h2>
+            <p class="text-[11px] text-slate-400">Sketch system designs, architecture notes, and flowcharts with your team</p>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2.5">
+          <div class="flex items-center bg-slate-800/90 rounded-xl p-1 gap-1 border border-slate-700">
+            <button id="wbToolPen" class="px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium flex items-center gap-1.5 shadow-sm">
+              <i class="fas fa-pencil"></i> Pen
+            </button>
+            <button id="wbToolHighlighter" class="px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5">
+              <i class="fas fa-highlighter"></i> Glow
+            </button>
+            <button id="wbToolEraser" class="px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5">
+              <i class="fas fa-eraser"></i> Eraser
+            </button>
+            <div class="w-px h-5 bg-slate-700 mx-1"></div>
+            <input id="wbColorPicker" type="color" value="#38bdf8" class="w-7 h-7 rounded-lg border-0 cursor-pointer bg-transparent" title="Pick ink color">
+            <button id="wbClearBtn" class="px-2.5 py-1.5 text-xs text-rose-400 hover:bg-rose-500/20 rounded-lg flex items-center gap-1 transition">
+              <i class="fas fa-trash-can"></i>
+            </button>
+          </div>
+          <button id="closeWhiteboardBtn" class="w-9 h-9 flex items-center justify-center rounded-xl bg-slate-800 text-slate-400 hover:text-white border border-slate-700 transition">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+
+      <div class="flex-1 relative bg-slate-900/95 overflow-hidden cursor-crosshair">
+        <canvas id="whiteboardCanvas" class="w-full h-full block"></canvas>
+        <div class="absolute bottom-4 left-6 pointer-events-none bg-slate-950/80 border border-slate-800 rounded-xl px-3.5 py-2 text-[11px] text-slate-400 shadow-lg backdrop-blur-sm">
+          💡 <strong class="text-slate-300">Quick Tip:</strong> Use drag to draw. Team members nearby can view your live diagram!
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: ESPRESSO & CHAI BREAK LOUNGE -->
+  <div id="coffeeModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl border border-amber-500/40 shadow-2xl p-6 flex flex-col items-center text-center animate-in fade-in zoom-in-95">
+      <div class="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-3xl text-amber-400 mb-3 shadow-lg shadow-amber-500/20">
+        ☕
+      </div>
+      <h3 class="text-lg font-bold text-white mb-1">Office Chai & Espresso Bar</h3>
+      <p class="text-xs text-slate-300 mb-4">Recharge between sprints! Brewing gives you a +25% walking speed energy boost.</p>
+      
+      <div class="w-full bg-slate-900/80 p-4 rounded-2xl border border-slate-800 mb-5">
+        <div class="flex justify-between text-xs text-slate-400 mb-1.5">
+          <span>Barista Energy Gauge:</span>
+          <span id="coffeeScore" class="font-bold text-amber-400">0 cups brewed</span>
+        </div>
+        <div class="w-full bg-slate-800 rounded-full h-3 overflow-hidden p-0.5 border border-slate-700">
+          <div id="coffeeBar" class="bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-400 h-full rounded-full transition-all duration-300 w-0"></div>
+        </div>
+        <p id="coffeeQuote" class="text-[11px] text-amber-300/80 italic mt-2.5">"Turning hot coffee into clean commits..."</p>
+      </div>
+
+      <div class="flex gap-3 w-full">
+        <button id="brewCoffeeBtn" class="flex-1 py-3 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white font-bold text-xs transition shadow-lg shadow-amber-600/30 active:scale-95 flex items-center justify-center gap-2">
+          <i class="fas fa-mug-hot"></i> Brew Cup (+Speed Boost)
+        </button>
+        <button id="closeCoffeeBtn" class="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold text-xs border border-slate-700 transition">
+          Return
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: AUDITORIUM SPEAKER PODIUM -->
+  <div id="podiumModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-md hidden items-center justify-center p-4">
+    <div class="glass-card w-full max-w-md rounded-3xl border border-purple-500/40 shadow-2xl p-6 flex flex-col items-center text-center animate-in fade-in zoom-in-95">
+      <div class="w-16 h-16 rounded-2xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-3xl text-purple-400 mb-3 shadow-lg shadow-purple-500/20">
+        📢
+      </div>
+      <h3 class="text-lg font-bold text-white mb-1">Auditorium Main Stage Podium</h3>
+      <p class="text-xs text-slate-300 mb-4">You have stepped onto the speaker's podium. In Gather, the presenter broadcasts across the entire space simultaneously!</p>
+      
+      <div class="p-3.5 bg-purple-950/50 border border-purple-800/60 rounded-2xl text-purple-200 text-xs text-left mb-5 w-full">
+        <div class="font-bold mb-1 flex items-center gap-2 text-purple-300"><i class="fas fa-bullhorn"></i> Global Broadcast Active</div>
+        <p class="text-[11px] text-purple-200/80 leading-relaxed">All distance and wall proximity filters are suspended while occupying this stage.</p>
+      </div>
+
+      <button id="closePodiumBtn" class="w-full py-3 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs transition shadow-lg shadow-purple-600/30 active:scale-95">
+        Continue Presenting to Office
+      </button>
+    </div>
+  </div>
+
+  <!-- COPY TOAST NOTIFICATION -->
+  <div id="copyToast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 glass-card px-4 py-2 rounded-xl text-xs font-semibold text-emerald-300 border border-emerald-500/40 shadow-2xl pointer-events-none transition-all duration-300 opacity-0 -translate-y-2 flex items-center gap-2">
+    <i class="fas fa-check-circle text-emerald-400"></i>
+    <span>Space link copied to clipboard!</span>
+  </div>
+
+  <script>
+    /* ==========================================================================
+       GATHER-STYLE 2D SPATIAL METAVERSE & VIRTUAL OFFICE ENGINE
+       ========================================================================== */
+
+    class SoundManager {
+      constructor() {
+        this.ctx = null;
+        this.enabled = true;
+      }
+      init() {
+        if (!this.ctx) {
+          const AudioContext = window.AudioContext || window.webkitAudioContext;
+          if (AudioContext) {
+            this.ctx = new AudioContext();
+          }
+        }
+        if (this.ctx && this.ctx.state === 'suspended') {
+          this.ctx.resume();
+        }
+      }
+      playChime(freq = 587.33, duration = 0.25, type = 'sine') {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (e) {}
+      }
+      playFootstep() {
+        if (!this.enabled) return;
+        this.init();
+        if (!this.ctx) return;
+        try {
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(110, this.ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(45, this.ctx.currentTime + 0.04);
+          gain.gain.setValueAtTime(0.015, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + 0.04);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + 0.04);
+        } catch (e) {}
+      }
+      playZoneJoin() {
+        this.playChime(440, 0.12, 'sine');
+        setTimeout(() => this.playChime(659.25, 0.2, 'sine'), 80);
+      }
+      playConnect() {
+        this.playChime(523.25, 0.1, 'sine');
+        setTimeout(() => this.playChime(783.99, 0.2, 'sine'), 70);
+      }
+    }
+
+    const sound = new SoundManager();
+
+    const WORLD_WIDTH = 2400;
+    const WORLD_HEIGHT = 1600;
+    const PROXIMITY_RADIUS = 165;
+
+    // Zones definition
+    const ZONES = [
+      {
+        id: 'reception',
+        name: 'Welcome Lobby & Reception',
+        x: 100, y: 100, width: 650, height: 420,
+        floorType: 'parquet',
+        color: '#1e2433',
+        type: 'open'
+      },
+      {
+        id: 'coworking',
+        name: 'Open Co-Working Floor',
+        x: 820, y: 100, width: 850, height: 600,
+        floorType: 'tiles',
+        color: '#182030',
+        type: 'open'
+      },
+      {
+        id: 'room_a',
+        name: 'Private Meeting Room Alpha',
+        x: 100, y: 580, width: 650, height: 450,
+        floorType: 'carpet_navy',
+        color: '#1a1d36',
+        type: 'private'
+      },
+      {
+        id: 'room_b',
+        name: 'Executive Strategy Suite',
+        x: 100, y: 1090, width: 650, height: 420,
+        floorType: 'carpet_emerald',
+        color: '#132822',
+        type: 'private'
+      },
+      {
+        id: 'podium',
+        name: 'Townhall Presentation Stage',
+        x: 1730, y: 100, width: 570, height: 500,
+        floorType: 'stage_wood',
+        color: '#2e1642',
+        type: 'stage'
+      },
+      {
+        id: 'whiteboard_zone',
+        name: 'Design & Architecture Whiteboard',
+        x: 820, y: 760, width: 850, height: 350,
+        floorType: 'blueprint',
+        color: '#132b42',
+        type: 'interactive',
+        interactType: 'whiteboard'
+      },
+      {
+        id: 'coffee_lounge',
+        name: 'Chai & Coffee Break Lounge',
+        x: 820, y: 1170, width: 850, height: 340,
+        floorType: 'terracotta',
+        color: '#361e18',
+        type: 'interactive',
+        interactType: 'coffee'
+      },
+      {
+        id: 'gaming_corner',
+        name: 'Gaming & Chill Corner',
+        x: 1730, y: 660, width: 570, height: 850,
+        floorType: 'arcade_grid',
+        color: '#132e27',
+        type: 'open'
+      }
+    ];
+
+    // Solid Obstacles & Walls with Generous Open Doorways (Walkable Flow!)
+    const OBSTACLES = [
+      // Outer border walls
+      { x: 0, y: 0, width: WORLD_WIDTH, height: 40, type: 'wall' },
+      { x: 0, y: WORLD_HEIGHT - 40, width: WORLD_WIDTH, height: 40, type: 'wall' },
+      { x: 0, y: 0, width: 40, height: WORLD_HEIGHT, type: 'wall' },
+      { x: WORLD_WIDTH - 40, y: 0, width: 40, height: WORLD_HEIGHT, type: 'wall' },
+
+      // Partition wall between Reception & Room A (with right doorway)
+      { x: 100, y: 535, width: 440, height: 25, type: 'wall' },
+
+      // Partition wall between Room A & Room B (with right doorway)
+      { x: 100, y: 1045, width: 440, height: 25, type: 'wall' },
+
+      // Left Wing / Center Hallway divider (with multiple 140px open doorways!)
+      { x: 765, y: 40, width: 25, height: 200, type: 'wall' },
+      // Doorway 1: y 240 to 380 (Open door from Reception to Co-working corridor)
+      { x: 765, y: 380, width: 25, height: 360, type: 'wall' },
+      // Doorway 2: y 740 to 880 (Open door from Room A to corridor)
+      { x: 765, y: 880, width: 25, height: 360, type: 'wall' },
+      // Doorway 3: y 1240 to 1380 (Open door from Room B to corridor)
+      { x: 765, y: 1380, width: 25, height: 180, type: 'wall' },
+
+      // Center / Right Wing divider (with wide open doorways to Stage & Arcade)
+      { x: 1685, y: 40, width: 25, height: 240, type: 'wall' },
+      // Doorway 4: y 280 to 420 (Open door to Presentation Stage)
+      { x: 1685, y: 420, width: 25, height: 440, type: 'wall' },
+      // Doorway 5: y 860 to 1020 (Open door to Arcade & Lounge)
+      { x: 1685, y: 1020, width: 25, height: 540, type: 'wall' },
+
+      // Reception Desk
+      { x: 280, y: 220, width: 270, height: 80, type: 'reception_desk', label: 'Reception' },
+
+      // Meeting Room A - Executive Boardroom Table
+      { x: 250, y: 730, width: 340, height: 160, type: 'boardroom_table', label: 'Boardroom Table' },
+
+      // Meeting Room B - Round Strategy Table
+      { x: 290, y: 1220, width: 250, height: 160, type: 'strategy_table', label: 'Strategy Circle' },
+
+      // Co-working Desks Clusters
+      { x: 920, y: 220, width: 280, height: 100, type: 'work_desk', label: 'Engineering Pod 1' },
+      { x: 1300, y: 220, width: 280, height: 100, type: 'work_desk', label: 'Engineering Pod 2' },
+      { x: 920, y: 420, width: 280, height: 100, type: 'work_desk', label: 'Product & Growth' },
+      { x: 1300, y: 420, width: 280, height: 100, type: 'work_desk', label: 'Design Systems' },
+
+      // Whiteboard Stand (Positioned nicely in Whiteboard Zone)
+      { x: 1140, y: 840, width: 220, height: 48, type: 'whiteboard_item', label: 'Whiteboard Stand' },
+
+      // Coffee Bar Counter
+      { x: 1120, y: 1250, width: 260, height: 75, type: 'coffee_bar', label: 'Espresso Bar' },
+
+      // Stage Podium Desk
+      { x: 1960, y: 170, width: 110, height: 60, type: 'podium_stand', label: 'Speaker Podium' },
+
+      // Arcade Machines
+      { x: 1780, y: 730, width: 100, height: 70, type: 'arcade', label: 'Arcade 1' },
+      { x: 1920, y: 730, width: 100, height: 70, type: 'arcade', label: 'Arcade 2' },
+      { x: 2060, y: 730, width: 100, height: 70, type: 'arcade', label: 'Arcade 3' },
+
+      // Lounge Sofas in Gaming Area
+      { x: 1820, y: 1180, width: 240, height: 80, type: 'lounge_sofa', label: 'Velvet Lounge Sofa' }
+    ];
+
+    // Decorative Plants placed away from room title plaques
+    const PLANTS = [
+      { x: 130, y: 140, r: 16 },
+      { x: 700, y: 140, r: 16 },
+      { x: 130, y: 620, r: 16 },
+      { x: 700, y: 620, r: 16 },
+      { x: 130, y: 1130, r: 16 },
+      { x: 860, y: 140, r: 16 },
+      { x: 1630, y: 140, r: 16 },
+      { x: 860, y: 1200, r: 18 },
+      { x: 1630, y: 1470, r: 18 },
+      { x: 2250, y: 140, r: 18 },
+      { x: 2250, y: 1470, r: 20 }
+    ];
+
+    // Interactable Points of Interest
+    const INTERACTABLES = [
+      {
+        id: 'wb_station',
+        type: 'whiteboard',
+        x: 1250,
+        y: 890,
+        radius: 95,
+        prompt: 'Press E to open Collaborative Whiteboard',
+        action: () => openWhiteboard()
+      },
+      {
+        id: 'coffee_station',
+        type: 'coffee',
+        x: 1250,
+        y: 1330,
+        radius: 95,
+        prompt: 'Press E to Brew Espresso / Chai',
+        action: () => openCoffeeMachine()
+      },
+      {
+        id: 'podium_station',
+        type: 'podium',
+        x: 2015,
+        y: 220,
+        radius: 80,
+        prompt: 'Press E to Broadcast on Townhall Stage',
+        action: () => openPodiumNotice()
+      }
+    ];
+
+    const OUTFIT_COLORS = [
+      '#6366f1', '#3b82f6', '#06b6d4', '#10b981', '#f59e0b',
+      '#f97316', '#ec4899', '#8b5cf6', '#14b8a6', '#ef4444'
+    ];
+
+    const HAIR_STYLES = [
+      { id: 'short', name: 'Short Cut', color: '#1e293b' },
+      { id: 'curls', name: 'Curly Afro', color: '#78350f' },
+      { id: 'blonde', name: 'Golden Wave', color: '#d97706' },
+      { id: 'bun', name: 'Top Knot', color: '#0f172a' }
+    ];
+
+    const localPlayer = {
+      id: 'local_player',
+      name: 'Player',
+      x: 480,
+      y: 330,
+      baseSpeed: 3.8,
+      speed: 3.8,
+      speedBoostTimer: 0,
+      radius: 18,
+      color: '#6366f1',
+      hairStyle: 'short',
+      hairColor: '#1e293b',
+      statusEmoji: '💻',
+      statusText: 'Deep focus mode',
+      direction: 'down',
+      isMoving: false,
+      currentZone: null,
+      micActive: false,
+      camActive: false,
+      screenActive: false,
+      speechBubble: null,
+      emoteBubble: null,
+      stepTimer: 0,
+      walkFrame: 0
+    };
+
+    let remotePlayers = [
+      {
+        id: 'bot_alex',
+        name: 'Alex (Senior Dev)',
+        x: 1050, y: 280,
+        targetX: 1050, targetY: 280,
+        speed: 2.2,
+        radius: 18,
+        color: '#10b981',
+        hairColor: '#78350f',
+        hairStyle: 'curls',
+        statusEmoji: '⚡',
+        statusText: 'Refactoring Spatial Engine',
+        direction: 'down',
+        isMoving: false,
+        currentZone: null,
+        micActive: true,
+        camActive: true,
+        isSpeaking: true,
+        speechBubble: null,
+        emoteBubble: null,
+        patrolTimer: 0,
+        walkFrame: 0
+      },
+      {
+        id: 'bot_maya',
+        name: 'Maya (UI Designer)',
+        x: 1180, y: 920,
+        targetX: 1180, targetY: 920,
+        speed: 2.0,
+        radius: 18,
+        color: '#ec4899',
+        hairColor: '#d97706',
+        hairStyle: 'bun',
+        statusEmoji: '🎨',
+        statusText: 'Reviewing Design Tokens',
+        direction: 'up',
+        isMoving: false,
+        currentZone: null,
+        micActive: false,
+        camActive: true,
+        isSpeaking: false,
+        speechBubble: null,
+        emoteBubble: null,
+        patrolTimer: 0,
+        walkFrame: 0
+      },
+      {
+        id: 'bot_liam',
+        name: 'Liam (Product Manager)',
+        x: 360, y: 790,
+        targetX: 360, targetY: 790,
+        speed: 2.2,
+        radius: 18,
+        color: '#f59e0b',
+        hairColor: '#1e293b',
+        hairStyle: 'short',
+        statusEmoji: '📊',
+        statusText: 'Sprint Roadmap Review',
+        direction: 'right',
+        isMoving: false,
+        currentZone: null,
+        micActive: true,
+        camActive: false,
+        isSpeaking: false,
+        speechBubble: null,
+        emoteBubble: null,
+        patrolTimer: 0,
+        walkFrame: 0
+      },
+      {
+        id: 'bot_sam',
+        name: 'Sam (Lead Architect)',
+        x: 480, y: 830,
+        targetX: 480, targetY: 830,
+        speed: 2.1,
+        radius: 18,
+        color: '#8b5cf6',
+        hairColor: '#0f172a',
+        hairStyle: 'curls',
+        statusEmoji: '☕',
+        statusText: 'Architecture RFC-209',
+        direction: 'left',
+        isMoving: false,
+        currentZone: null,
+        micActive: false,
+        camActive: true,
+        isSpeaking: false,
+        speechBubble: null,
+        emoteBubble: null,
+        patrolTimer: 0,
+        walkFrame: 0
+      },
+      {
+        id: 'bot_zoe',
+        name: 'Zoe (Staff QA)',
+        x: 1210, y: 1340,
+        targetX: 1210, targetY: 1340,
+        speed: 2.0,
+        radius: 18,
+        color: '#06b6d4',
+        hairColor: '#d97706',
+        hairStyle: 'short',
+        statusEmoji: '🍵',
+        statusText: 'Espresso recharge & catchup',
+        direction: 'up',
+        isMoving: false,
+        currentZone: null,
+        micActive: true,
+        camActive: true,
+        isSpeaking: false,
+        speechBubble: null,
+        emoteBubble: null,
+        patrolTimer: 0,
+        walkFrame: 0
+      }
+    ];
+
+    const keysDown = {
+      ArrowUp: false,
+      ArrowDown: false,
+      ArrowLeft: false,
+      ArrowRight: false,
+      KeyW: false,
+      KeyS: false,
+      KeyA: false,
+      KeyD: false
+    };
+
+    let clickTarget = null;
+
+    const camera = {
+      x: 0,
+      y: 0,
+      width: window.innerWidth,
+      height: window.innerHeight,
+      zoom: 1
+    };
+
+    let chatChannel = 'nearby';
+    const chatHistory = [
+      { id: 1, sender: 'Alex (Senior Dev)', channel: 'global', text: 'Good morning everyone! Whiteboard room has the new spatial architecture draft.', time: '09:45 AM', color: '#10b981' },
+      { id: 2, sender: 'Maya (UI Designer)', channel: 'nearby', text: 'Hey there! Just updated the glassmorphism tokens and color palette.', time: '09:50 AM', color: '#ec4899' }
+    ];
+
+    let connectedPeers = new Set();
+    let currentActivePrompt = null;
+
+    // DOM References
+    const canvas = document.getElementById('worldCanvas');
+    const ctx = canvas.getContext('2d');
+    const miniMapCanvas = document.getElementById('miniMapCanvas');
+    const miniMapCtx = miniMapCanvas.getContext('2d');
+
+    const videoBar = document.getElementById('videoBar');
+    const proximityPeerList = document.getElementById('proximityPeerList');
+    const zoneBanner = document.getElementById('zoneBanner');
+    const zoneBannerText = document.getElementById('zoneBannerText');
+    const zonePrivacyBadge = document.getElementById('zonePrivacyBadge');
+    const currentRoomTag = document.getElementById('currentRoomTag');
+    const interactPrompt = document.getElementById('interactPrompt');
+    const promptText = document.getElementById('promptText');
+
+    const toggleMicBtn = document.getElementById('toggleMicBtn');
+    const bottomMicIcon = document.getElementById('bottomMicIcon');
+    const localMicIcon = document.getElementById('localMicIcon');
+    const toggleCamBtn = document.getElementById('toggleCamBtn');
+    const bottomCamIcon = document.getElementById('bottomCamIcon');
+    const toggleScreenBtn = document.getElementById('toggleScreenBtn');
+    const webcamPreview = document.getElementById('webcamPreview');
+    const localAvatarPlaceholder = document.getElementById('localAvatarPlaceholder');
+    const localCardName = document.getElementById('localCardName');
+    const localAvatarLetter = document.getElementById('localAvatarLetter');
+
+    const sidePanel = document.getElementById('sidePanel');
+    const toggleChatPanelBtn = document.getElementById('toggleChatPanelBtn');
+    const closeSidePanelBtn = document.getElementById('closeSidePanelBtn');
+    const tabChatBtn = document.getElementById('tabChatBtn');
+    const tabPeopleBtn = document.getElementById('tabPeopleBtn');
+    const tabSettingsBtn = document.getElementById('tabSettingsBtn');
+    const tabChatContent = document.getElementById('tabChatContent');
+    const tabPeopleContent = document.getElementById('tabPeopleContent');
+    const tabSettingsContent = document.getElementById('tabSettingsContent');
+    const unreadBadge = document.getElementById('unreadBadge');
+
+    const chatForm = document.getElementById('chatForm');
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+    const chatScopeNearby = document.getElementById('chatScopeNearby');
+    const chatScopeGlobal = document.getElementById('chatScopeGlobal');
+    const peopleList = document.getElementById('peopleList');
+    const peopleListCount = document.getElementById('peopleListCount');
+    const onlineCountBadge = document.getElementById('onlineCountBadge');
+    const onlineCountTop = document.getElementById('onlineCountTop');
+
+    const copyInviteBtn = document.getElementById('copyInviteBtn');
+    const copyToast = document.getElementById('copyToast');
+
+    const settingNameInput = document.getElementById('settingNameInput');
+    const settingStatusEmoji = document.getElementById('settingStatusEmoji');
+    const settingStatusText = document.getElementById('settingStatusText');
+    const previewNameLabel = document.getElementById('previewNameLabel');
+    const previewStatusLabel = document.getElementById('previewStatusLabel');
+    const previewEmojiBadge = document.getElementById('previewEmojiBadge');
+    const previewAvatarCircle = document.getElementById('previewAvatarCircle');
+    const outfitPalette = document.getElementById('outfitPalette');
+    const hairPalette = document.getElementById('hairPalette');
+    const soundFxToggle = document.getElementById('soundFxToggle');
+
+    const whiteboardModal = document.getElementById('whiteboardModal');
+    const closeWhiteboardBtn = document.getElementById('closeWhiteboardBtn');
+    const whiteboardCanvas = document.getElementById('whiteboardCanvas');
+    const wbCtx = whiteboardCanvas.getContext('2d');
+    const wbColorPicker = document.getElementById('wbColorPicker');
+    const wbToolPen = document.getElementById('wbToolPen');
+    const wbToolHighlighter = document.getElementById('wbToolHighlighter');
+    const wbToolEraser = document.getElementById('wbToolEraser');
+    const wbClearBtn = document.getElementById('wbClearBtn');
+
+    const coffeeModal = document.getElementById('coffeeModal');
+    const closeCoffeeBtn = document.getElementById('closeCoffeeBtn');
+    const brewCoffeeBtn = document.getElementById('brewCoffeeBtn');
+    const coffeeBar = document.getElementById('coffeeBar');
+    const coffeeScore = document.getElementById('coffeeScore');
+    const coffeeQuote = document.getElementById('coffeeQuote');
+    let coffeeCount = 0;
+
+    const podiumModal = document.getElementById('podiumModal');
+    const closePodiumBtn = document.getElementById('closePodiumBtn');
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      camera.width = window.innerWidth;
+      camera.height = window.innerHeight;
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    copyInviteBtn.onclick = () => {
+      navigator.clipboard.writeText(window.location.href);
+      copyToast.classList.remove('opacity-0', '-translate-y-2');
+      copyToast.classList.add('opacity-100', 'translate-y-0');
+      sound.playConnect();
+      setTimeout(() => {
+        copyToast.classList.add('opacity-0', '-translate-y-2');
+        copyToast.classList.remove('opacity-100', 'translate-y-0');
+      }, 2500);
+    };
+
+    // Whiteboard logic
+    let wbDrawing = false;
+    let wbCurrentTool = 'pen';
+    let wbLastX = 0;
+    let wbLastY = 0;
+
+    function initWhiteboard() {
+      whiteboardCanvas.width = whiteboardCanvas.parentElement.clientWidth;
+      whiteboardCanvas.height = whiteboardCanvas.parentElement.clientHeight;
+      wbCtx.fillStyle = '#0f172a';
+      wbCtx.fillRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+      
+      wbCtx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      wbCtx.lineWidth = 1;
+      for (let x = 0; x < whiteboardCanvas.width; x += 32) {
+        wbCtx.beginPath();
+        wbCtx.moveTo(x, 0);
+        wbCtx.lineTo(x, whiteboardCanvas.height);
+        wbCtx.stroke();
+      }
+      for (let y = 0; y < whiteboardCanvas.height; y += 32) {
+        wbCtx.beginPath();
+        wbCtx.moveTo(0, y);
+        wbCtx.lineTo(whiteboardCanvas.width, y);
+        wbCtx.stroke();
+      }
+
+      wbCtx.font = '700 16px "Plus Jakarta Sans", sans-serif';
+      wbCtx.fillStyle = '#f8fafc';
+      wbCtx.fillText('🚀 Sprint Architecture: Gather 2D Spatial Office', 40, 60);
+
+      wbCtx.font = '500 13px "Plus Jakarta Sans", sans-serif';
+      wbCtx.fillStyle = '#38bdf8';
+      wbCtx.fillText('• 60 FPS Canvas Renderer with Layered Floor Textures', 55, 95);
+      wbCtx.fillText('• Dynamic Proximity Audio/Video with Non-Overlapping HUD', 55, 125);
+      wbCtx.fillText('• Isolated Private Rooms & Stage Global Broadcast Mode', 55, 155);
+
+      wbCtx.fillStyle = '#fef08a';
+      wbCtx.fillRect(40, 190, 180, 100);
+      wbCtx.fillStyle = '#854d0e';
+      wbCtx.font = 'bold 11px sans-serif';
+      wbCtx.fillText('📌 TODO: Sprint Demo', 52, 215);
+      wbCtx.font = '10px sans-serif';
+      wbCtx.fillText('1. Invite team to room', 52, 235);
+      wbCtx.fillText('2. Coffee boost feature', 52, 252);
+      wbCtx.fillText('3. Standup in Room Alpha', 52, 269);
+    }
+
+    whiteboardCanvas.addEventListener('mousedown', (e) => {
+      wbDrawing = true;
+      const rect = whiteboardCanvas.getBoundingClientRect();
+      wbLastX = e.clientX - rect.left;
+      wbLastY = e.clientY - rect.top;
+    });
+
+    window.addEventListener('mouseup', () => { wbDrawing = false; });
+
+    whiteboardCanvas.addEventListener('mousemove', (e) => {
+      if (!wbDrawing) return;
+      const rect = whiteboardCanvas.getBoundingClientRect();
+      const currentX = e.clientX - rect.left;
+      const currentY = e.clientY - rect.top;
+
+      wbCtx.beginPath();
+      wbCtx.moveTo(wbLastX, wbLastY);
+      wbCtx.lineTo(currentX, currentY);
+      wbCtx.lineCap = 'round';
+      wbCtx.lineJoin = 'round';
+
+      if (wbCurrentTool === 'pen') {
+        wbCtx.strokeStyle = wbColorPicker.value;
+        wbCtx.lineWidth = 3;
+        wbCtx.globalAlpha = 1.0;
+      } else if (wbCurrentTool === 'highlighter') {
+        wbCtx.strokeStyle = wbColorPicker.value;
+        wbCtx.lineWidth = 14;
+        wbCtx.globalAlpha = 0.35;
+      } else {
+        wbCtx.strokeStyle = '#0f172a';
+        wbCtx.lineWidth = 26;
+        wbCtx.globalAlpha = 1.0;
+      }
+      wbCtx.stroke();
+      wbCtx.globalAlpha = 1.0;
+      wbLastX = currentX;
+      wbLastY = currentY;
+    });
+
+    wbToolPen.onclick = () => {
+      wbCurrentTool = 'pen';
+      wbToolPen.className = 'px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium flex items-center gap-1.5 shadow-sm';
+      wbToolHighlighter.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+      wbToolEraser.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+    };
+    wbToolHighlighter.onclick = () => {
+      wbCurrentTool = 'highlighter';
+      wbToolHighlighter.className = 'px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium flex items-center gap-1.5 shadow-sm';
+      wbToolPen.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+      wbToolEraser.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+    };
+    wbToolEraser.onclick = () => {
+      wbCurrentTool = 'eraser';
+      wbToolEraser.className = 'px-3 py-1.5 text-xs rounded-lg bg-indigo-600 text-white font-medium flex items-center gap-1.5 shadow-sm';
+      wbToolPen.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+      wbToolHighlighter.className = 'px-3 py-1.5 text-xs rounded-lg text-slate-400 hover:text-white flex items-center gap-1.5';
+    };
+    wbClearBtn.onclick = () => {
+      wbCtx.fillStyle = '#0f172a';
+      wbCtx.fillRect(0, 0, whiteboardCanvas.width, whiteboardCanvas.height);
+      sound.playChime(320, 0.12);
+    };
+
+    function openWhiteboard() {
+      whiteboardModal.classList.remove('hidden');
+      whiteboardModal.classList.add('flex');
+      setTimeout(initWhiteboard, 40);
+      sound.playConnect();
+    }
+    closeWhiteboardBtn.onclick = () => {
+      whiteboardModal.classList.add('hidden');
+      whiteboardModal.classList.remove('flex');
+    };
+
+    const coffeeQuotes = [
+      '"Turning hot espresso into clean pull requests..."',
+      '"Code is poetry, coffee is fuel."',
+      '"Recharging brain capacity by 25%..."',
+      '"Brewing caffeinated commits for production..."'
+    ];
+
+    function openCoffeeMachine() {
+      coffeeModal.classList.remove('hidden');
+      coffeeModal.classList.add('flex');
+      sound.playChime(600, 0.18);
+    }
+    closeCoffeeBtn.onclick = () => {
+      coffeeModal.classList.add('hidden');
+      coffeeModal.classList.remove('flex');
+    };
+    brewCoffeeBtn.onclick = () => {
+      coffeeCount++;
+      coffeeScore.innerText = `${coffeeCount} cups brewed`;
+      coffeeBar.style.width = `${Math.min(100, coffeeCount * 25)}%`;
+      coffeeQuote.innerText = coffeeQuotes[coffeeCount % coffeeQuotes.length];
+      
+      localPlayer.speed = localPlayer.baseSpeed * 1.25;
+      localPlayer.speedBoostTimer = 1200;
+      
+      sound.playChime(780, 0.25, 'triangle');
+      triggerEmote('☕');
+    };
+
+    function openPodiumNotice() {
+      podiumModal.classList.remove('hidden');
+      podiumModal.classList.add('flex');
+      sound.playChime(880, 0.25);
+    }
+    closePodiumBtn.onclick = () => {
+      podiumModal.classList.add('hidden');
+      podiumModal.classList.remove('flex');
+    };
+
+    function setupCustomizer() {
+      outfitPalette.innerHTML = '';
+      OUTFIT_COLORS.forEach(color => {
+        const btn = document.createElement('button');
+        btn.className = `w-7 h-7 rounded-full border-2 transition-transform hover:scale-115 ${localPlayer.color === color ? 'border-white scale-110 shadow-lg shadow-indigo-500/40 ring-2 ring-indigo-400' : 'border-transparent'}`;
+        btn.style.backgroundColor = color;
+        btn.onclick = () => {
+          localPlayer.color = color;
+          updateCustomizerPreview();
+          setupCustomizer();
+        };
+        outfitPalette.appendChild(btn);
+      });
+
+      hairPalette.innerHTML = '';
+      HAIR_STYLES.forEach(h => {
+        const btn = document.createElement('button');
+        const isSel = localPlayer.hairStyle === h.id;
+        btn.className = `p-2 rounded-xl border text-xs font-semibold transition ${isSel ? 'border-indigo-400 bg-indigo-600/30 text-white shadow-sm' : 'border-slate-700 bg-slate-800 text-slate-400 hover:text-slate-200'}`;
+        btn.innerText = h.name;
+        btn.onclick = () => {
+          localPlayer.hairStyle = h.id;
+          localPlayer.hairColor = h.color;
+          updateCustomizerPreview();
+          setupCustomizer();
+        };
+        hairPalette.appendChild(btn);
+      });
+
+      settingNameInput.oninput = (e) => {
+        localPlayer.name = e.target.value.trim() || 'Player';
+        localCardName.innerText = localPlayer.name;
+        localAvatarLetter.innerText = localPlayer.name.charAt(0).toUpperCase();
+        previewNameLabel.innerText = localPlayer.name;
+        previewAvatarCircle.innerText = localPlayer.name.charAt(0).toUpperCase();
+        renderPeopleList();
+      };
+      settingStatusEmoji.oninput = (e) => {
+        localPlayer.statusEmoji = e.target.value || '💬';
+        previewEmojiBadge.innerText = localPlayer.statusEmoji;
+        renderPeopleList();
+      };
+      settingStatusText.oninput = (e) => {
+        localPlayer.statusText = e.target.value || '';
+        previewStatusLabel.innerText = localPlayer.statusText;
+        renderPeopleList();
+      };
+      soundFxToggle.onchange = (e) => {
+        sound.enabled = e.target.checked;
+      };
+
+      updateCustomizerPreview();
+    }
+
+    function updateCustomizerPreview() {
+      previewAvatarCircle.style.backgroundColor = localPlayer.color;
+      previewAvatarCircle.innerText = localPlayer.name.charAt(0).toUpperCase();
+      previewNameLabel.innerText = localPlayer.name;
+      previewStatusLabel.innerText = localPlayer.statusText;
+      previewEmojiBadge.innerText = localPlayer.statusEmoji;
+    }
+    setupCustomizer();
+
+    let localStream = null;
+
+    toggleCamBtn.onclick = async () => {
+      sound.init();
+      if (!localPlayer.camActive) {
+        try {
+          localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+          webcamPreview.srcObject = localStream;
+          webcamPreview.classList.remove('hidden');
+          localAvatarPlaceholder.classList.add('hidden');
+          localPlayer.camActive = true;
+          bottomCamIcon.className = 'fas fa-video text-emerald-400 text-base sm:text-lg';
+          toggleCamBtn.classList.add('border-emerald-500/50', 'text-emerald-400');
+        } catch (err) {
+          localPlayer.camActive = true;
+          localAvatarPlaceholder.classList.remove('hidden');
+          localAvatarPlaceholder.className = 'w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-emerald-950/80 via-slate-900 to-slate-950 text-emerald-300';
+          bottomCamIcon.className = 'fas fa-video text-emerald-400 text-base sm:text-lg';
+          toggleCamBtn.classList.add('border-emerald-500/50', 'text-emerald-400');
+        }
+      } else {
+        if (localStream) {
+          localStream.getTracks().forEach(t => t.stop());
+          localStream = null;
+        }
+        webcamPreview.classList.add('hidden');
+        localAvatarPlaceholder.classList.remove('hidden');
+        localAvatarPlaceholder.className = 'w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-indigo-950/80 via-slate-900 to-slate-950 text-indigo-300';
+        localPlayer.camActive = false;
+        bottomCamIcon.className = 'fas fa-video-slash text-rose-400 text-base sm:text-lg';
+        toggleCamBtn.classList.remove('border-emerald-500/50', 'text-emerald-400');
+      }
+    };
+
+    toggleMicBtn.onclick = () => {
+      sound.init();
+      localPlayer.micActive = !localPlayer.micActive;
+      const indicator = document.getElementById('localSpeakingIndicator');
+      if (localPlayer.micActive) {
+        bottomMicIcon.className = 'fas fa-microphone text-emerald-400 text-base sm:text-lg';
+        localMicIcon.className = 'fas fa-microphone text-emerald-400';
+        toggleMicBtn.classList.add('border-emerald-500/50', 'text-emerald-400');
+        indicator.classList.remove('opacity-0');
+        indicator.classList.add('opacity-100');
+        sound.playChime(640, 0.1);
+      } else {
+        bottomMicIcon.className = 'fas fa-microphone-slash text-rose-400 text-base sm:text-lg';
+        localMicIcon.className = 'fas fa-microphone-slash text-rose-400';
+        toggleMicBtn.classList.remove('border-emerald-500/50', 'text-emerald-400');
+        indicator.classList.remove('opacity-100');
+        indicator.classList.add('opacity-0');
+        sound.playChime(420, 0.1);
+      }
+    };
+
+    toggleScreenBtn.onclick = () => {
+      sound.init();
+      localPlayer.screenActive = !localPlayer.screenActive;
+      if (localPlayer.screenActive) {
+        toggleScreenBtn.classList.add('border-indigo-500', 'text-indigo-400', 'bg-indigo-950/40');
+        triggerEmote('🖥️');
+      } else {
+        toggleScreenBtn.classList.remove('border-indigo-500', 'text-indigo-400', 'bg-indigo-950/40');
+      }
+    };
+
+    function triggerEmote(emoteSymbol) {
+      sound.playChime(820, 0.18, 'sine');
+      localPlayer.emoteBubble = {
+        symbol: emoteSymbol,
+        timer: 110
+      };
+
+      const emoteDiv = document.createElement('div');
+      emoteDiv.className = 'fixed text-3xl z-40 floating-emote pointer-events-none drop-shadow-md';
+      emoteDiv.innerText = emoteSymbol;
+      
+      const screenX = (localPlayer.x - camera.x) * camera.zoom;
+      const screenY = (localPlayer.y - camera.y) * camera.zoom - 40;
+      emoteDiv.style.left = `${screenX}px`;
+      emoteDiv.style.top = `${screenY}px`;
+      document.body.appendChild(emoteDiv);
+      setTimeout(() => emoteDiv.remove(), 1800);
+    }
+
+    document.querySelectorAll('.emote-btn').forEach(btn => {
+      btn.onclick = () => triggerEmote(btn.dataset.emote);
+    });
+
+    let sidePanelOpen = false;
+
+    function openPanel(tab = 'chat') {
+      sidePanelOpen = true;
+      sidePanel.classList.remove('translate-x-[115%]');
+      sidePanel.classList.add('translate-x-0');
+      unreadBadge.classList.add('hidden');
+      switchTab(tab);
+    }
+
+    function closePanel() {
+      sidePanelOpen = false;
+      sidePanel.classList.add('translate-x-[115%]');
+      sidePanel.classList.remove('translate-x-0');
+    }
+
+    toggleChatPanelBtn.onclick = () => {
+      if (sidePanelOpen) closePanel();
+      else openPanel('chat');
+    };
+    closeSidePanelBtn.onclick = closePanel;
+
+    function switchTab(tab) {
+      tabChatBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5';
+      tabPeopleBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5';
+      tabSettingsBtn.className = 'flex-1 py-2 text-xs font-semibold rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-all flex items-center justify-center gap-1.5';
+
+      tabChatContent.classList.add('hidden');
+      tabChatContent.classList.remove('flex');
+      tabPeopleContent.classList.add('hidden');
+      tabPeopleContent.classList.remove('flex');
+      tabSettingsContent.classList.add('hidden');
+      tabSettingsContent.classList.remove('flex');
+
+      if (tab === 'chat') {
+        tabChatBtn.className = 'flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/25';
+        tabChatContent.classList.remove('hidden');
+        tabChatContent.classList.add('flex');
+        chatInput.focus();
+      } else if (tab === 'people') {
+        tabPeopleBtn.className = 'flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/25';
+        tabPeopleContent.classList.remove('hidden');
+        tabPeopleContent.classList.add('flex');
+        renderPeopleList();
+      } else if (tab === 'settings') {
+        tabSettingsBtn.className = 'flex-1 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white transition-all flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/25';
+        tabSettingsContent.classList.remove('hidden');
+        tabSettingsContent.classList.add('flex');
+      }
+    }
+
+    tabChatBtn.onclick = () => switchTab('chat');
+    tabPeopleBtn.onclick = () => switchTab('people');
+    tabSettingsBtn.onclick = () => switchTab('settings');
+
+    chatScopeNearby.onclick = () => {
+      chatChannel = 'nearby';
+      chatScopeNearby.className = 'flex-1 py-1.5 rounded-lg bg-indigo-600 text-white transition-colors flex items-center justify-center gap-1.5 shadow-sm';
+      chatScopeGlobal.className = 'flex-1 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5';
+      renderChatMessages();
+    };
+
+    chatScopeGlobal.onclick = () => {
+      chatChannel = 'global';
+      chatScopeGlobal.className = 'flex-1 py-1.5 rounded-lg bg-indigo-600 text-white transition-colors flex items-center justify-center gap-1.5 shadow-sm';
+      chatScopeNearby.className = 'flex-1 py-1.5 rounded-lg text-slate-400 hover:text-slate-200 transition-colors flex items-center justify-center gap-1.5';
+      renderChatMessages();
+    };
+
+    function renderChatMessages() {
+      chatMessages.innerHTML = '';
+      const filtered = chatHistory.filter(m => chatChannel === 'global' || m.channel === 'nearby');
+      
+      if (filtered.length === 0) {
+        chatMessages.innerHTML = `
+          <div class="text-[11px] text-center text-slate-500 py-4">
+            No ${chatChannel} messages yet. Type below to say hi!
+          </div>
+        `;
+        return;
+      }
+
+      filtered.forEach(msg => {
+        const item = document.createElement('div');
+        item.className = 'bg-slate-900/70 p-2.5 rounded-xl border border-slate-800/80 shadow-sm';
+        item.innerHTML = `
+          <div class="flex items-center justify-between mb-1">
+            <span class="font-bold text-[11px]" style="color: ${msg.color || '#818cf8'}">${msg.sender}</span>
+            <span class="text-[9px] text-slate-500 font-mono">${msg.time}</span>
+          </div>
+          <p class="text-slate-200 leading-snug break-words text-[11px]">${msg.text}</p>
+        `;
+        chatMessages.appendChild(item);
+      });
+      chatMessages.scrollTop = chatMessages.scrollHeight;
+    }
+    renderChatMessages();
+
+    chatForm.onsubmit = (e) => {
+      e.preventDefault();
+      const txt = chatInput.value.trim();
+      if (!txt) return;
+
+      const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const newMsg = {
+        id: Date.now(),
+        sender: localPlayer.name,
+        channel: chatChannel,
+        text: txt,
+        time: timeStr,
+        color: localPlayer.color
+      };
+
+      chatHistory.push(newMsg);
+      renderChatMessages();
+
+      localPlayer.speechBubble = {
+        text: txt,
+        timer: 190
+      };
+
+      chatInput.value = '';
+      sound.playChime(640, 0.1);
+
+      const nearbyBot = remotePlayers.find(b => getDistance(localPlayer, b) < PROXIMITY_RADIUS);
+      if (nearbyBot && Math.random() > 0.25) {
+        setTimeout(() => {
+          const replies = [
+            "Good point! Let's check the whiteboard for that.",
+            "Sounds good, I am working on the spatial audio pipeline right now.",
+            "Want to grab a chai and discuss this in Private Room A?",
+            "LGTM! Shipping the PR."
+          ];
+          const botReply = replies[Math.floor(Math.random() * replies.length)];
+          chatHistory.push({
+            id: Date.now() + 1,
+            sender: nearbyBot.name,
+            channel: 'nearby',
+            text: botReply,
+            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            color: nearbyBot.color
+          });
+          nearbyBot.speechBubble = { text: botReply, timer: 180 };
+          renderChatMessages();
+          sound.playChime(520, 0.15);
+          if (!sidePanelOpen) {
+            unreadBadge.classList.remove('hidden');
+          }
+        }, 1100);
+      }
+    };
+
+    function renderPeopleList() {
+      const allPlayers = [localPlayer, ...remotePlayers];
+      peopleListCount.innerText = `${allPlayers.length} online`;
+      onlineCountBadge.innerText = `${allPlayers.length} Active`;
+      onlineCountTop.innerText = `${allPlayers.length} Online`;
+      peopleList.innerHTML = '';
+
+      allPlayers.forEach(p => {
+        const isMe = p.id === localPlayer.id;
+        const currentZoneObj = ZONES.find(z => z.id === p.currentZone);
+        const zoneName = currentZoneObj ? currentZoneObj.name : 'Office Hallway';
+
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between p-2.5 rounded-xl bg-slate-900/60 border border-slate-800/80 hover:border-slate-700 transition shadow-sm';
+        row.innerHTML = `
+          <div class="flex items-center gap-2.5 min-w-0">
+            <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-xs relative flex-shrink-0" style="background-color: ${p.color}25; border: 1.5px solid ${p.color}; color: ${p.color}">
+              ${p.name.charAt(0)}
+              <span class="absolute -bottom-1 -right-1 text-[11px]">${p.statusEmoji || '👋'}</span>
+            </div>
+            <div class="min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="font-semibold text-white truncate max-w-[105px] text-xs">${p.name} ${isMe ? '<span class="text-indigo-400 font-mono text-[10px]">(You)</span>' : ''}</span>
+              </div>
+              <div class="text-[10px] text-slate-400 truncate max-w-[125px] flex items-center gap-1">
+                <i class="fas fa-location-dot text-[9px] text-indigo-400"></i> ${zoneName}
+              </div>
+            </div>
+          </div>
+          ${!isMe ? `
+            <button class="teleport-btn text-[11px] font-semibold bg-slate-800 hover:bg-indigo-600 hover:text-white text-slate-300 px-2.5 py-1 rounded-lg border border-slate-700 transition active:scale-95 flex items-center gap-1" data-id="${p.id}">
+              <i class="fas fa-bolt text-[9px]"></i> Go
+            </button>
+          ` : ''}
+        `;
+        peopleList.appendChild(row);
+      });
+
+      document.querySelectorAll('.teleport-btn').forEach(btn => {
+        btn.onclick = (e) => {
+          e.stopPropagation();
+          const targetId = btn.dataset.id;
+          const target = remotePlayers.find(r => r.id === targetId);
+          if (target) {
+            localPlayer.x = target.x - 45;
+            localPlayer.y = target.y;
+            clickTarget = null;
+            sound.playConnect();
+            triggerEmote('⚡');
+          }
+        };
+      });
+    }
+
+    window.addEventListener('keydown', (e) => {
+      if (document.activeElement === chatInput || 
+          document.activeElement === settingNameInput || 
+          document.activeElement === settingStatusEmoji || 
+          document.activeElement === settingStatusText) {
+        return;
+      }
+
+      if (keysDown.hasOwnProperty(e.code)) {
+        keysDown[e.code] = true;
+        clickTarget = null;
+      }
+
+      if (e.code === 'KeyM') toggleMicBtn.click();
+      if (e.code === 'KeyV') toggleCamBtn.click();
+      if (e.code === 'KeyC') toggleChatPanelBtn.click();
+      if (e.code === 'KeyE') {
+        if (currentActivePrompt && currentActivePrompt.action) {
+          currentActivePrompt.action();
+        }
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (keysDown.hasOwnProperty(e.code)) {
+        keysDown[e.code] = false;
+      }
+    });
+
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const clickX = (e.clientX - rect.left) / camera.zoom + camera.x;
+      const clickY = (e.clientY - rect.top) / camera.zoom + camera.y;
+
+      clickTarget = { x: clickX, y: clickY };
+    });
+
+    function checkCollision(x, y, radius) {
+      for (const obs of OBSTACLES) {
+        const closestX = Math.max(obs.x, Math.min(x, obs.x + obs.width));
+        const closestY = Math.max(obs.y, Math.min(y, obs.y + obs.height));
+
+        const distanceX = x - closestX;
+        const distanceY = y - closestY;
+        const distanceSquared = (distanceX * distanceX) + (distanceY * distanceY);
+
+        if (distanceSquared < (radius * radius)) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    function getDistance(p1, p2) {
+      const dx = p1.x - p2.x;
+      const dy = p1.y - p2.y;
+      return Math.sqrt(dx * dx + dy * dy);
+    }
+
+    function getZoneAt(x, y) {
+      for (const zone of ZONES) {
+        if (x >= zone.x && x <= zone.x + zone.width &&
+            y >= zone.y && y <= zone.y + zone.height) {
+          return zone;
+        }
+      }
+      return null;
+    }
+
+    function updateSimulation() {
+      if (localPlayer.speedBoostTimer > 0) {
+        localPlayer.speedBoostTimer--;
+        if (localPlayer.speedBoostTimer <= 0) {
+          localPlayer.speed = localPlayer.baseSpeed;
+        }
+      }
+
+      let moveX = 0;
+      let moveY = 0;
+
+      if (keysDown.ArrowUp || keysDown.KeyW) moveY -= 1;
+      if (keysDown.ArrowDown || keysDown.KeyS) moveY += 1;
+      if (keysDown.ArrowLeft || keysDown.KeyA) moveX -= 1;
+      if (keysDown.ArrowRight || keysDown.KeyD) moveX += 1;
+
+      if (moveX !== 0 && moveY !== 0) {
+        const factor = Math.SQRT1_2;
+        moveX *= factor;
+        moveY *= factor;
+      }
+
+      if (moveX !== 0 || moveY !== 0) {
+        clickTarget = null;
+        localPlayer.isMoving = true;
+
+        if (moveX > 0) localPlayer.direction = 'right';
+        else if (moveX < 0) localPlayer.direction = 'left';
+        else if (moveY > 0) localPlayer.direction = 'down';
+        else if (moveY < 0) localPlayer.direction = 'up';
+
+        const nextX = localPlayer.x + moveX * localPlayer.speed;
+        const nextY = localPlayer.y + moveY * localPlayer.speed;
+
+        if (!checkCollision(nextX, localPlayer.y, localPlayer.radius)) {
+          localPlayer.x = nextX;
+        }
+        if (!checkCollision(localPlayer.x, nextY, localPlayer.radius)) {
+          localPlayer.y = nextY;
+        }
+
+        localPlayer.stepTimer++;
+        localPlayer.walkFrame += 0.2;
+        if (localPlayer.stepTimer % 20 === 0) {
+          sound.playFootstep();
+        }
+      } else if (clickTarget) {
+        const dx = clickTarget.x - localPlayer.x;
+        const dy = clickTarget.y - localPlayer.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist > 4) {
+          localPlayer.isMoving = true;
+          const stepX = (dx / dist) * localPlayer.speed;
+          const stepY = (dy / dist) * localPlayer.speed;
+
+          if (Math.abs(dx) > Math.abs(dy)) {
+            localPlayer.direction = dx > 0 ? 'right' : 'left';
+          } else {
+            localPlayer.direction = dy > 0 ? 'down' : 'up';
+          }
+
+          if (!checkCollision(localPlayer.x + stepX, localPlayer.y, localPlayer.radius)) {
+            localPlayer.x += stepX;
+          }
+          if (!checkCollision(localPlayer.x, localPlayer.y + stepY, localPlayer.radius)) {
+            localPlayer.y += stepY;
+          }
+
+          localPlayer.stepTimer++;
+          localPlayer.walkFrame += 0.2;
+          if (localPlayer.stepTimer % 20 === 0) {
+            sound.playFootstep();
+          }
+        } else {
+          clickTarget = null;
+          localPlayer.isMoving = false;
+        }
+      } else {
+        localPlayer.isMoving = false;
+      }
+
+      localPlayer.x = Math.max(localPlayer.radius + 40, Math.min(WORLD_WIDTH - localPlayer.radius - 40, localPlayer.x));
+      localPlayer.y = Math.max(localPlayer.radius + 40, Math.min(WORLD_HEIGHT - localPlayer.radius - 40, localPlayer.y));
+
+      const targetCamX = localPlayer.x - camera.width / 2;
+      const targetCamY = localPlayer.y - camera.height / 2;
+      camera.x += (targetCamX - camera.x) * 0.12;
+      camera.y += (targetCamY - camera.y) * 0.12;
+
+      const newZone = getZoneAt(localPlayer.x, localPlayer.y);
+      const newZoneId = newZone ? newZone.id : null;
+      if (newZoneId !== localPlayer.currentZone) {
+        localPlayer.currentZone = newZoneId;
+        if (newZone) {
+          currentRoomTag.innerText = newZone.name;
+          zoneBannerText.innerText = newZone.name;
+          zonePrivacyBadge.innerText = newZone.type === 'private' ? 'ISOLATED BOARDROOM' : (newZone.type === 'stage' ? 'BROADCAST PODIUM' : 'OPEN ZONE');
+          zoneBanner.classList.remove('opacity-0', '-translate-y-3');
+          zoneBanner.classList.add('opacity-100', 'translate-y-0');
+          sound.playZoneJoin();
+          setTimeout(() => {
+            zoneBanner.classList.add('opacity-0', '-translate-y-3');
+            zoneBanner.classList.remove('opacity-100', 'translate-y-0');
+          }, 3200);
+        } else {
+          currentRoomTag.innerText = 'Main Hallway';
+        }
+      }
+
+      remotePlayers.forEach(bot => {
+        bot.patrolTimer++;
+        if (bot.patrolTimer > 180 + Math.random() * 200) {
+          bot.patrolTimer = 0;
+          const angle = Math.random() * Math.PI * 2;
+          const range = 50 + Math.random() * 70;
+          const candidateX = bot.x + Math.cos(angle) * range;
+          const candidateY = bot.y + Math.sin(angle) * range;
+
+          if (!checkCollision(candidateX, candidateY, bot.radius)) {
+            bot.targetX = candidateX;
+            bot.targetY = candidateY;
+          }
+        }
+
+        const bdx = bot.targetX - bot.x;
+        const bdy = bot.targetY - bot.y;
+        const bdist = Math.sqrt(bdx * bdx + bdy * bdy);
+
+        if (bdist > 3) {
+          bot.isMoving = true;
+          bot.x += (bdx / bdist) * (bot.speed * 0.5);
+          bot.y += (bdy / bdist) * (bot.speed * 0.5);
+          bot.direction = Math.abs(bdx) > Math.abs(bdy) ? (bdx > 0 ? 'right' : 'left') : (bdy > 0 ? 'down' : 'up');
+          bot.walkFrame += 0.15;
+        } else {
+          bot.isMoving = false;
+        }
+
+        bot.currentZone = (getZoneAt(bot.x, bot.y) || {}).id || null;
+
+        if (bot.speechBubble) {
+          bot.speechBubble.timer--;
+          if (bot.speechBubble.timer <= 0) bot.speechBubble = null;
+        }
+      });
+
+      if (localPlayer.speechBubble) {
+        localPlayer.speechBubble.timer--;
+        if (localPlayer.speechBubble.timer <= 0) localPlayer.speechBubble = null;
+      }
+
+      updateProximityConnections();
+      checkInteractables();
+    }
+
+    function updateProximityConnections() {
+      const activePeersNow = new Set();
+      const playerZoneObj = ZONES.find(z => z.id === localPlayer.currentZone);
+      const isPlayerInPrivateRoom = playerZoneObj && playerZoneObj.type === 'private';
+
+      remotePlayers.forEach(peer => {
+        const dist = getDistance(localPlayer, peer);
+        const peerZoneObj = ZONES.find(z => z.id === peer.currentZone);
+        const isPeerInPrivateRoom = peerZoneObj && peerZoneObj.type === 'private';
+
+        let canConnect = false;
+
+        if (isPlayerInPrivateRoom || isPeerInPrivateRoom) {
+          if (localPlayer.currentZone === peer.currentZone) {
+            canConnect = true;
+          }
+        } else if (dist <= PROXIMITY_RADIUS) {
+          canConnect = true;
+        }
+
+        if (canConnect) {
+          activePeersNow.add(peer.id);
+          if (!connectedPeers.has(peer.id)) {
+            sound.playConnect();
+          }
+        }
+      });
+
+      let changed = activePeersNow.size !== connectedPeers.size;
+      if (!changed) {
+        for (let id of activePeersNow) {
+          if (!connectedPeers.has(id)) {
+            changed = true;
+            break;
+          }
+        }
+      }
+
+      if (changed) {
+        connectedPeers = activePeersNow;
+        renderProximityVideoCards();
+      }
+    }
+
+    function renderProximityVideoCards() {
+      proximityPeerList.innerHTML = '';
+      if (connectedPeers.size === 0) return;
+
+      connectedPeers.forEach(peerId => {
+        const peer = remotePlayers.find(p => p.id === peerId);
+        if (!peer) return;
+
+        const card = document.createElement('div');
+        card.className = 'relative w-36 h-24 sm:w-40 sm:h-24 rounded-2xl glass-card border border-emerald-500/50 overflow-hidden shadow-2xl flex-shrink-0 transition-transform duration-200 hover:scale-[1.03] animate-in fade-in zoom-in-95';
+        card.innerHTML = `
+          <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-900 to-slate-950 text-emerald-300 relative">
+            <div class="w-9 h-9 rounded-full flex items-center justify-center text-base font-bold border border-emerald-400/40 shadow-inner" style="background-color: ${peer.color}30; color: ${peer.color}">
+              ${peer.name.charAt(0)}
+            </div>
+            <span class="text-[10px] font-semibold mt-1 text-slate-300 truncate max-w-[105px]">${peer.statusText}</span>
+            ${peer.isSpeaking ? `
+              <div class="absolute inset-0 rounded-2xl speaking-glow pointer-events-none"></div>
+            ` : ''}
+          </div>
+          <div class="absolute bottom-1.5 left-2 flex items-center gap-1.5 bg-black/75 px-2 py-0.5 rounded-lg text-[10px] text-white backdrop-blur-md border border-white/10">
+            <i class="fas ${peer.micActive ? 'fa-microphone text-emerald-400' : 'fa-microphone-slash text-rose-400'} text-[10px]"></i>
+            <span class="font-medium truncate max-w-[65px]">${peer.name.split(' ')[0]}</span>
+          </div>
+          <div class="absolute top-1.5 right-1.5 bg-emerald-500/30 text-emerald-300 text-[8px] font-mono px-1.5 py-0.5 rounded-md border border-emerald-400/30">
+            RADAR
+          </div>
+        `;
+        proximityPeerList.appendChild(card);
+      });
+    }
+
+    function checkInteractables() {
+      let foundPrompt = null;
+      for (const item of INTERACTABLES) {
+        const dist = getDistance(localPlayer, item);
+        if (dist <= item.radius) {
+          foundPrompt = item;
+          break;
+        }
+      }
+
+      currentActivePrompt = foundPrompt;
+      if (foundPrompt) {
+        promptText.innerText = foundPrompt.prompt;
+        interactPrompt.classList.remove('opacity-0', 'translate-y-2', 'scale-95');
+        interactPrompt.classList.add('opacity-100', 'translate-y-0', 'scale-100');
+      } else {
+        interactPrompt.classList.add('opacity-0', 'translate-y-2', 'scale-95');
+        interactPrompt.classList.remove('opacity-100', 'translate-y-0', 'scale-100');
+      }
+    }
+
+    // --- High-End 2D Virtual Office Canvas Rendering ---
+    function renderWorld() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.scale(camera.zoom, camera.zoom);
+      ctx.translate(-camera.x, -camera.y);
+
+      // Base Hallway Floor (Warm Honey Oak Timber Flooring)
+      ctx.fillStyle = '#1e1a17';
+      ctx.fillRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
+
+      ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+      ctx.lineWidth = 1.5;
+      for (let py = 0; py < WORLD_HEIGHT; py += 32) {
+        ctx.beginPath();
+        ctx.moveTo(0, py);
+        ctx.lineTo(WORLD_WIDTH, py);
+        ctx.stroke();
+      }
+      for (let px = 0; px < WORLD_WIDTH; px += 96) {
+        for (let py = 0; py < WORLD_HEIGHT; py += 64) {
+          ctx.beginPath();
+          ctx.moveTo(px, py);
+          ctx.lineTo(px, py + 32);
+          ctx.stroke();
+        }
+      }
+
+      // Render Each Zone Floor with Rich Textures
+      ZONES.forEach(zone => {
+        ctx.save();
+        ctx.fillStyle = zone.color;
+        ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+
+        if (zone.floorType === 'parquet') {
+          // Warm Parquet in Reception
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+          ctx.lineWidth = 1.5;
+          for (let py = zone.y; py < zone.y + zone.height; py += 28) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.3)';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+
+          // Central Welcome Circular Rug
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.roundRect(zone.x + 120, zone.y + 140, zone.width - 240, zone.height - 200, 24);
+          ctx.fill();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (zone.floorType === 'tiles') {
+          // Modern polished ash tile in Coworking floor
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.04)';
+          ctx.lineWidth = 2;
+          for (let px = zone.x; px < zone.x + zone.width; px += 60) {
+            ctx.beginPath();
+            ctx.moveTo(px, zone.y);
+            ctx.lineTo(px, zone.y + zone.height);
+            ctx.stroke();
+          }
+          for (let py = zone.y; py < zone.y + zone.height; py += 60) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+          // Rugs under pods
+          ctx.fillStyle = 'rgba(99, 102, 241, 0.08)';
+          ctx.fillRect(zone.x + 80, zone.y + 100, zone.width - 160, zone.height - 180);
+        } else if (zone.floorType === 'carpet_navy' || zone.floorType === 'carpet_emerald') {
+          // Boardroom plush woven carpet with gold border
+          ctx.strokeStyle = 'rgba(255, 255, 255, 0.03)';
+          ctx.lineWidth = 2;
+          for (let py = zone.y; py < zone.y + zone.height; py += 12) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+          ctx.strokeStyle = zone.floorType === 'carpet_navy' ? 'rgba(99, 102, 241, 0.5)' : 'rgba(16, 185, 129, 0.5)';
+          ctx.lineWidth = 3;
+          ctx.strokeRect(zone.x + 8, zone.y + 8, zone.width - 16, zone.height - 16);
+        } else if (zone.floorType === 'terracotta') {
+          // Terracotta checker tiles in coffee lounge
+          ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
+          ctx.lineWidth = 2;
+          for (let px = zone.x; px < zone.x + zone.width; px += 36) {
+            ctx.beginPath();
+            ctx.moveTo(px, zone.y);
+            ctx.lineTo(px, zone.y + zone.height);
+            ctx.stroke();
+          }
+          for (let py = zone.y; py < zone.y + zone.height; py += 36) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+        } else if (zone.floorType === 'stage_wood') {
+          // Auditorium mahogany stage
+          ctx.strokeStyle = 'rgba(192, 132, 252, 0.4)';
+          ctx.lineWidth = 4;
+          ctx.strokeRect(zone.x, zone.y, zone.width, zone.height);
+
+          // Red runner carpet
+          ctx.fillStyle = '#831843';
+          ctx.fillRect(zone.x + zone.width / 2 - 40, zone.y + 120, 80, zone.height - 140);
+          
+          // Spotlight gradient
+          const grad = ctx.createRadialGradient(zone.x + zone.width / 2, zone.y + 200, 20, zone.x + zone.width / 2, zone.y + 200, 260);
+          grad.addColorStop(0, 'rgba(250, 204, 21, 0.22)');
+          grad.addColorStop(1, 'rgba(250, 204, 21, 0)');
+          ctx.fillStyle = grad;
+          ctx.fillRect(zone.x, zone.y, zone.width, zone.height);
+        } else if (zone.floorType === 'blueprint') {
+          // Blueprint drafting grid
+          ctx.strokeStyle = 'rgba(56, 189, 248, 0.1)';
+          ctx.lineWidth = 1;
+          for (let px = zone.x; px < zone.x + zone.width; px += 24) {
+            ctx.beginPath();
+            ctx.moveTo(px, zone.y);
+            ctx.lineTo(px, zone.y + zone.height);
+            ctx.stroke();
+          }
+          for (let py = zone.y; py < zone.y + zone.height; py += 24) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+        } else if (zone.floorType === 'arcade_grid') {
+          // Retro synthwave grid
+          ctx.strokeStyle = 'rgba(16, 185, 129, 0.15)';
+          ctx.lineWidth = 1.5;
+          for (let px = zone.x; px < zone.x + zone.width; px += 40) {
+            ctx.beginPath();
+            ctx.moveTo(px, zone.y);
+            ctx.lineTo(px, zone.y + zone.height);
+            ctx.stroke();
+          }
+          for (let py = zone.y; py < zone.y + zone.height; py += 40) {
+            ctx.beginPath();
+            ctx.moveTo(zone.x, py);
+            ctx.lineTo(zone.x + zone.width, py);
+            ctx.stroke();
+          }
+        }
+
+        // Room Wall Plaque Signage
+        const plaqueW = 240;
+        const plaqueH = 26;
+        const plaqueX = zone.x + 30;
+        const plaqueY = zone.y + 12;
+
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.85)';
+        ctx.beginPath();
+        ctx.roundRect(plaqueX, plaqueY, plaqueW, plaqueH, 6);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
+        ctx.fillStyle = '#f1f5f9';
+        ctx.fillText(zone.name, plaqueX + 12, plaqueY + 17);
+
+        ctx.restore();
+      });
+
+      // Render Furniture & Obstacles
+      OBSTACLES.forEach(obs => {
+        ctx.save();
+        if (obs.type === 'reception_desk') {
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 4, obs.y + 6, obs.width, obs.height, 16);
+          ctx.fill();
+
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 16);
+          ctx.fill();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 10, obs.y + 10, obs.width - 20, obs.height - 20, 10);
+          ctx.fill();
+
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillRect(obs.x + obs.width / 2 - 25, obs.y + 20, 50, 6);
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(obs.x + obs.width / 2 - 15, obs.y + 32, 30, 12);
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(obs.x + obs.width / 2 + 55, obs.y + 36, 6, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText('RECEPTION & CONCIERGE', obs.x + 20, obs.y + obs.height - 14);
+        } else if (obs.type === 'boardroom_table' || obs.type === 'strategy_table') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 6, obs.y + 8, obs.width, obs.height, 28);
+          ctx.fill();
+
+          ctx.fillStyle = '#261c14';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 28);
+          ctx.fill();
+          ctx.strokeStyle = '#5c4033';
+          ctx.lineWidth = 3;
+          ctx.stroke();
+
+          ctx.fillStyle = '#16120e';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 35, obs.y + 28, obs.width - 70, obs.height - 56, 12);
+          ctx.fill();
+
+          ctx.beginPath();
+          ctx.arc(obs.x + obs.width / 2, obs.y + obs.height / 2, 14, 0, Math.PI * 2);
+          ctx.fillStyle = '#334155';
+          ctx.fill();
+          ctx.strokeStyle = '#6366f1';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          ctx.fillStyle = '#0284c7';
+          ctx.fillRect(obs.x + 70, obs.y + 40, 24, 4);
+          ctx.fillRect(obs.x + obs.width - 94, obs.y + 40, 24, 4);
+
+          ctx.fillStyle = '#475569';
+          for (let cx = obs.x + 35; cx < obs.x + obs.width - 20; cx += 45) {
+            ctx.beginPath();
+            ctx.arc(cx, obs.y - 8, 8, 0, Math.PI * 2);
+            ctx.arc(cx, obs.y + obs.height + 8, 8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        } else if (obs.type === 'work_desk') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.35)';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 4, obs.y + 6, obs.width, obs.height, 10);
+          ctx.fill();
+
+          ctx.fillStyle = '#2c251d';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 10);
+          ctx.fill();
+          ctx.strokeStyle = '#4a3b2c';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          // Dual curved screens with IDE syntax highlight colors
+          ctx.fillStyle = '#0284c7';
+          ctx.fillRect(obs.x + 22, obs.y + 14, 46, 6);
+          ctx.fillStyle = '#8b5cf6';
+          ctx.fillRect(obs.x + 76, obs.y + 14, 46, 6);
+
+          ctx.fillStyle = '#0284c7';
+          ctx.fillRect(obs.x + 158, obs.y + 14, 46, 6);
+          ctx.fillStyle = '#10b981';
+          ctx.fillRect(obs.x + 212, obs.y + 14, 46, 6);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.fillRect(obs.x + 50, obs.y + 30, 32, 14);
+          ctx.fillRect(obs.x + 186, obs.y + 30, 32, 14);
+
+          ctx.fillStyle = '#f59e0b';
+          ctx.beginPath();
+          ctx.arc(obs.x + 115, obs.y + 36, 4, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.fillStyle = '#64748b';
+          ctx.beginPath();
+          ctx.arc(obs.x + 66, obs.y + obs.height + 10, 10, 0, Math.PI * 2);
+          ctx.arc(obs.x + 202, obs.y + obs.height + 10, 10, 0, Math.PI * 2);
+          ctx.fill();
+
+          ctx.font = '600 10px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(obs.label, obs.x + 14, obs.y + obs.height - 12);
+        } else if (obs.type === 'whiteboard_item') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.fillRect(obs.x + 6, obs.y + 8, obs.width, obs.height);
+
+          ctx.fillStyle = '#0f172a';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 8);
+          ctx.fill();
+          ctx.strokeStyle = '#38bdf8';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#1e293b';
+          ctx.beginPath();
+          ctx.roundRect(obs.x + 8, obs.y + 8, obs.width - 16, obs.height - 16, 4);
+          ctx.fill();
+
+          ctx.fillStyle = '#fef08a';
+          ctx.fillRect(obs.x + 16, obs.y + 14, 18, 18);
+          ctx.fillStyle = '#bbf7d0';
+          ctx.fillRect(obs.x + 40, obs.y + 14, 18, 18);
+          ctx.fillStyle = '#fecdd3';
+          ctx.fillRect(obs.x + 64, obs.y + 14, 18, 18);
+
+          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#38bdf8';
+          ctx.fillText('COLLABORATIVE WHITEBOARD', obs.x + 92, obs.y + 30);
+        } else if (obs.type === 'coffee_bar') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+          ctx.fillRect(obs.x + 6, obs.y + 8, obs.width, obs.height);
+
+          ctx.fillStyle = '#3e2723';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 10);
+          ctx.fill();
+          ctx.strokeStyle = '#8d6e63';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#cbd5e1';
+          ctx.fillRect(obs.x + 25, obs.y + 16, 55, 30);
+          ctx.fillStyle = '#ef4444';
+          ctx.fillRect(obs.x + 32, obs.y + 20, 8, 8);
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillRect(obs.x + 70, obs.y + 28, 4, 14);
+
+          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#fef3c7';
+          ctx.fillText('☕ CHAI & ESPRESSO BAR', obs.x + 95, obs.y + 42);
+        } else if (obs.type === 'podium_stand') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+          ctx.fillRect(obs.x + 4, obs.y + 6, obs.width, obs.height);
+
+          ctx.fillStyle = '#4a044e';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 8);
+          ctx.fill();
+          ctx.strokeStyle = '#c084fc';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.strokeStyle = '#facc15';
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.moveTo(obs.x + obs.width / 2, obs.y + 12);
+          ctx.lineTo(obs.x + obs.width / 2 - 6, obs.y - 6);
+          ctx.stroke();
+
+          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#f3e8ff';
+          ctx.fillText('📢 PODIUM', obs.x + 18, obs.y + 36);
+        } else if (obs.type === 'arcade') {
+          ctx.fillStyle = '#064e3b';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 8);
+          ctx.fill();
+          ctx.fillStyle = '#10b981';
+          ctx.fillRect(obs.x + 15, obs.y + 10, obs.width - 30, 22);
+          ctx.strokeStyle = '#34d399';
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        } else if (obs.type === 'lounge_sofa') {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+          ctx.fillRect(obs.x + 6, obs.y + 8, obs.width, obs.height);
+
+          ctx.fillStyle = '#1e1b4b';
+          ctx.beginPath();
+          ctx.roundRect(obs.x, obs.y, obs.width, obs.height, 18);
+          ctx.fill();
+          ctx.strokeStyle = '#6366f1';
+          ctx.lineWidth = 2.5;
+          ctx.stroke();
+
+          ctx.fillStyle = '#312e81';
+          ctx.fillRect(obs.x + 15, obs.y + 12, 60, obs.height - 24);
+          ctx.fillRect(obs.x + 85, obs.y + 12, 60, obs.height - 24);
+          ctx.fillRect(obs.x + 155, obs.y + 12, 60, obs.height - 24);
+
+          ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+          ctx.fillStyle = '#c7d2fe';
+          ctx.fillText('🛋️ RELAX LOUNGE', obs.x + 20, obs.y + obs.height / 2 + 4);
+        } else {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+          ctx.fillRect(obs.x + 5, obs.y + 5, obs.width, obs.height);
+
+          ctx.fillStyle = '#1e293b';
+          ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+          ctx.strokeStyle = '#334155';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+        }
+        ctx.restore();
+      });
+
+      // Potted Tropical Plants
+      PLANTS.forEach(p => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.ellipse(p.x + 4, p.y + 6, p.r, p.r * 0.5, 0, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = '#166534';
+        ctx.fill();
+        ctx.strokeStyle = '#4ade80';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.fillStyle = '#22c55e';
+        for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
+          const lx = p.x + Math.cos(a) * (p.r * 0.7);
+          const ly = p.y + Math.sin(a) * (p.r * 0.7);
+          ctx.beginPath();
+          ctx.arc(lx, ly, p.r * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      });
+
+      // Spatial Proximity Radar Ring Around Local Player
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(localPlayer.x, localPlayer.y, PROXIMITY_RADIUS, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(99, 102, 241, 0.05)';
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(99, 102, 241, 0.3)';
+      ctx.setLineDash([6, 6]);
+      ctx.lineWidth = 1.8;
+      ctx.stroke();
+      ctx.restore();
+
+      // Click destination marker
+      if (clickTarget) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(clickTarget.x, clickTarget.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(clickTarget.x, clickTarget.y, 14, 0, Math.PI * 2);
+        ctx.strokeStyle = '#38bdf8';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+      }
+
+      // Render Remote Colleagues
+      remotePlayers.forEach(peer => {
+        drawAvatar(peer, false);
+      });
+
+      // Render Local Player Avatar
+      drawAvatar(localPlayer, true);
+
+      ctx.restore();
+
+      renderMiniMap();
+    }
+
+    function drawAvatar(player, isSelf = false) {
+      ctx.save();
+      const x = player.x;
+      const y = player.y;
+
+      ctx.beginPath();
+      ctx.ellipse(x, y + 14, 14, 6, 0, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+      ctx.fill();
+
+      if (!isSelf && connectedPeers.has(player.id)) {
+        ctx.beginPath();
+        ctx.moveTo(localPlayer.x, localPlayer.y);
+        ctx.lineTo(player.x, player.y);
+        ctx.strokeStyle = 'rgba(52, 211, 153, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.setLineDash([4, 4]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      const walkBob = player.isMoving ? Math.sin(player.walkFrame) * 2 : 0;
+
+      // Body (Outfit color)
+      ctx.beginPath();
+      ctx.arc(x, y + 4 + walkBob, 12, 0, Math.PI * 2);
+      ctx.fillStyle = player.color;
+      ctx.fill();
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Head
+      ctx.beginPath();
+      ctx.arc(x, y - 8 + walkBob, 10, 0, Math.PI * 2);
+      ctx.fillStyle = '#fed7aa';
+      ctx.fill();
+      ctx.stroke();
+
+      // Hair
+      ctx.beginPath();
+      ctx.fillStyle = player.hairColor || '#1e293b';
+      if (player.hairStyle === 'bun') {
+        ctx.arc(x, y - 11 + walkBob, 9, Math.PI, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(x, y - 20 + walkBob, 4.5, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (player.hairStyle === 'curls') {
+        ctx.arc(x, y - 12 + walkBob, 10, Math.PI * 0.9, Math.PI * 2.1);
+        ctx.fill();
+      } else {
+        ctx.arc(x, y - 12 + walkBob, 9, Math.PI, Math.PI * 2);
+        ctx.fill();
+      }
+
+      // Eyes facing direction
+      ctx.fillStyle = '#0f172a';
+      if (player.direction === 'left') {
+        ctx.fillRect(x - 6, y - 8 + walkBob, 2.5, 3.5);
+      } else if (player.direction === 'right') {
+        ctx.fillRect(x + 4, y - 8 + walkBob, 2.5, 3.5);
+      } else if (player.direction === 'up') {
+        // Back of head
+      } else {
+        ctx.fillRect(x - 4, y - 8 + walkBob, 2.5, 3.5);
+        ctx.fillRect(x + 2, y - 8 + walkBob, 2.5, 3.5);
+      }
+
+      if (player.micActive) {
+        ctx.beginPath();
+        ctx.arc(x + 13, y - 15 + walkBob, 5.5, 0, Math.PI * 2);
+        ctx.fillStyle = '#22c55e';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+
+      // Nameplate
+      ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+      const nameText = `${player.name} ${player.statusEmoji || ''}`;
+      const textMetrics = ctx.measureText(nameText);
+      const textWidth = textMetrics.width;
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+      ctx.beginPath();
+      ctx.roundRect(x - (textWidth / 2) - 8, y - 36 + walkBob, textWidth + 16, 20, 8);
+      ctx.fill();
+      ctx.strokeStyle = isSelf ? '#818cf8' : 'rgba(255, 255, 255, 0.25)';
+      ctx.lineWidth = 1.2;
+      ctx.stroke();
+
+      ctx.fillStyle = isSelf ? '#a5b4fc' : '#f8fafc';
+      ctx.fillText(nameText, x - (textWidth / 2), y - 22 + walkBob);
+
+      // Overhead Speech Bubble
+      if (player.speechBubble) {
+        ctx.save();
+        ctx.font = '500 12px "Plus Jakarta Sans", sans-serif';
+        const msgMetrics = ctx.measureText(player.speechBubble.text);
+        const bubbleW = Math.min(230, msgMetrics.width + 20);
+        const bubbleH = 28;
+        const bx = x - (bubbleW / 2);
+        const by = y - 74 + walkBob;
+
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.roundRect(bx, by, bubbleW, bubbleH, 10);
+        ctx.fill();
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(x - 6, by + bubbleH);
+        ctx.lineTo(x + 6, by + bubbleH);
+        ctx.lineTo(x, by + bubbleH + 7);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+
+        ctx.fillStyle = '#0f172a';
+        ctx.fillText(player.speechBubble.text, bx + 10, by + 18, bubbleW - 20);
+        ctx.restore();
+      }
+
+      ctx.restore();
+    }
+
+    function renderMiniMap() {
+      miniMapCtx.clearRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
+      const scaleX = miniMapCanvas.width / WORLD_WIDTH;
+      const scaleY = miniMapCanvas.height / WORLD_HEIGHT;
+
+      miniMapCtx.fillStyle = '#0f172a';
+      miniMapCtx.fillRect(0, 0, miniMapCanvas.width, miniMapCanvas.height);
+
+      ZONES.forEach(z => {
+        miniMapCtx.fillStyle = z.color;
+        miniMapCtx.fillRect(z.x * scaleX, z.y * scaleY, z.width * scaleX, z.height * scaleY);
+      });
+
+      miniMapCtx.fillStyle = '#475569';
+      OBSTACLES.forEach(o => {
+        miniMapCtx.fillRect(o.x * scaleX, o.y * scaleY, o.width * scaleX, o.height * scaleY);
+      });
+
+      remotePlayers.forEach(p => {
+        miniMapCtx.beginPath();
+        miniMapCtx.arc(p.x * scaleX, p.y * scaleY, 3, 0, Math.PI * 2);
+        miniMapCtx.fillStyle = p.color;
+        miniMapCtx.fill();
+      });
+
+      miniMapCtx.beginPath();
+      miniMapCtx.arc(localPlayer.x * scaleX, localPlayer.y * scaleY, 4.5, 0, Math.PI * 2);
+      miniMapCtx.fillStyle = '#38bdf8';
+      miniMapCtx.fill();
+      miniMapCtx.strokeStyle = '#ffffff';
+      miniMapCtx.lineWidth = 1.5;
+      miniMapCtx.stroke();
+    }
+
+    function gameLoop() {
+      updateSimulation();
+      renderWorld();
+      requestAnimationFrame(gameLoop);
+    }
+
+    window.onload = function() {
+      resizeCanvas();
+      renderPeopleList();
+      requestAnimationFrame(gameLoop);
+    };
+  </script>
+</body>
+</html>

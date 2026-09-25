@@ -1,3 +1,3 @@
-// server/src/types.ts — re-exports the shared contract for the server build.
-// Do not redefine these shapes here; edit ../../shared/types.ts instead.
+// server/src/types.ts
+// Re-exports shared types for the server build. See AGENTS.md §2.
 export * from '../../shared/types';

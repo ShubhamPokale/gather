@@ -4,7 +4,7 @@
 // If you change this logic, update that doc in the same change.
 
 import { useEffect, useRef } from 'react';
-import { Room, RemoteParticipant, RemoteTrackPublication, RemoteTrack, Track } from 'livekit-client';
+import { Room, RemoteParticipant, RemoteTrackPublication, RemoteAudioTrack, Track } from 'livekit-client';
 import mapData from '../mapData.json';
 import { PlayerState } from '../types';
 import { getDistance } from '../utils/math';
@@ -26,6 +26,12 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
   // Connect once per url/token pair.
   useEffect(() => {
     if (!url || !token) return;
+
+    // Skip connecting if these are placeholder dev credentials
+    if (url === 'wss://your-project.livekit.cloud') {
+      console.info('[LiveKit] Skipping connection: placeholder URL detected. Set real credentials in server/.env to enable A/V.');
+      return;
+    }
 
     const room = new Room({ adaptiveStream: true, dynacast: true });
     roomRef.current = room;
@@ -61,30 +67,37 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
       let shouldHear = false;
       let gain = 0;
 
-      if (peerZoneMeta?.isBroadcast) {
-        // Podium/stage always broadcasts to everyone.
+      // §3.2 — evaluated in order:
+      if ((peerZoneMeta as { isBroadcast?: boolean } | undefined)?.isBroadcast) {
+        // 1. Podium/stage: full gain to everyone.
         shouldHear = true;
         gain = 1.0;
       } else if (localZoneMeta?.isolatedAudio || peerZoneMeta?.isolatedAudio) {
-        // Either side is in a private room: only hear each other if same room.
+        // 2. Either side in a private room: only same zone hears each other.
         if (localPlayer.zoneId === peerState.zoneId) {
           shouldHear = true;
           gain = 1.0;
         }
       } else if (dist <= PROXIMITY_RADIUS) {
+        // 3. Open space: distance falloff.
         shouldHear = true;
         const clamped = Math.max(0, dist - PROXIMITY_INNER);
         const range = PROXIMITY_RADIUS - PROXIMITY_INNER;
         gain = dist <= PROXIMITY_INNER ? 1.0 : Math.pow(1 - clamped / range, 2);
       }
 
+      // Video subscription (§3.3)
+      const videoSubscribe = dist < 150 && shouldHear;
+
       participant.trackPublications.forEach((pub: RemoteTrackPublication) => {
-        if (!pub.track) return;
         if (pub.kind === Track.Kind.Audio) {
-          (pub.track as RemoteTrack).setVolume(gain);
+          // livekit-client v2: volume is set on the AudioTrack element
+          if (pub.audioTrack) {
+            (pub.audioTrack as RemoteAudioTrack).setVolume(gain);
+          }
         }
         if (pub.kind === Track.Kind.Video) {
-          pub.setSubscribed(shouldHear);
+          pub.setSubscribed(videoSubscribe);
         }
       });
     });
