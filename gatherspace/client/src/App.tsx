@@ -7,7 +7,8 @@ import { CanvasView } from './components/CanvasView';
 import { MiniMap } from './components/MiniMap';
 import { WhiteboardModal } from './components/WhiteboardModal';
 import { ArcadeModal } from './components/ArcadeModal';
-import { useLiveKit } from './hooks/useLiveKit';
+import { RemoteVideoTrack } from 'livekit-client';
+import { useLiveKit, ProximityPeer } from './hooks/useLiveKit';
 import { PlayerState, Direction, ServerMessage, ClientMessage } from './types';
 import mapData from './mapData.json';
 import { soundFX } from './utils/audio';
@@ -296,6 +297,145 @@ const JoinModal: React.FC<JoinModalProps> = ({ initialRoomId, onJoin }) => {
   );
 };
 
+// ── Remote Proximity Peer Card with LiveKit Video ─────────────────────────
+interface RemotePeerCardProps {
+  peer: ProximityPeer;
+  videoTrack?: RemoteVideoTrack;
+  onClick: () => void;
+}
+
+const RemotePeerCard: React.FC<RemotePeerCardProps> = ({ peer, videoTrack, onClick }) => {
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (el && videoTrack) {
+      videoTrack.attach(el);
+      return () => {
+        videoTrack.detach(el);
+      };
+    }
+  }, [videoTrack]);
+
+  const isSpeaking = peer.isSpeaking;
+
+  return (
+    <div
+      onClick={onClick}
+      className="glass-card"
+      title={`Click to Warp to ${peer.name}`}
+      style={{
+        position: 'relative',
+        width: 140,
+        height: 90,
+        borderRadius: 18,
+        overflow: 'hidden',
+        border: isSpeaking
+          ? '2px solid #22c55e'
+          : peer.gain > 0.8
+          ? '2px solid rgba(16, 185, 129, 0.6)'
+          : '1px solid rgba(255, 255, 255, 0.15)',
+        boxShadow: isSpeaking ? '0 0 16px rgba(34, 197, 94, 0.5)' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: '#090d16',
+        flexShrink: 0,
+        cursor: 'pointer',
+        transition: 'transform 0.15s ease',
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
+      onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
+    >
+      {videoTrack ? (
+        <video
+          ref={videoRef}
+          autoPlay
+          playsInline
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        />
+      ) : (
+        <div
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: '50%',
+            background: peer.color,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontWeight: 800,
+            fontSize: 15,
+          }}
+        >
+          {peer.name.charAt(0).toUpperCase()}
+        </div>
+      )}
+
+      <div
+        style={{
+          marginTop: videoTrack ? 0 : 2,
+          fontSize: 11,
+          fontWeight: 700,
+          color: '#f8fafc',
+          maxWidth: 110,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+          position: videoTrack ? 'absolute' : 'relative',
+          bottom: videoTrack ? 24 : 'auto',
+          background: videoTrack ? 'rgba(0,0,0,0.65)' : 'transparent',
+          padding: videoTrack ? '1px 6px' : 0,
+          borderRadius: 4,
+        }}
+      >
+        {peer.name}
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 4,
+          left: 6,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 4,
+          background: 'rgba(0,0,0,0.7)',
+          padding: '2px 6px',
+          borderRadius: 6,
+          backdropFilter: 'blur(4px)',
+        }}
+      >
+        <i
+          className={`fas ${peer.canHear ? 'fa-volume-up text-emerald-400' : 'fa-volume-mute text-rose-400'}`}
+          style={{ fontSize: 9 }}
+        ></i>
+        <span style={{ fontSize: 9, fontWeight: 600, color: peer.canHear ? '#a7f3d0' : '#fca5a5' }}>
+          {Math.round(peer.gain * 100)}%
+        </span>
+      </div>
+
+      <div
+        style={{
+          position: 'absolute',
+          top: 4,
+          right: 6,
+          background: peer.inSameRoom ? 'rgba(99, 102, 241, 0.3)' : 'rgba(16, 185, 129, 0.3)',
+          color: peer.inSameRoom ? '#a5b4fc' : '#34d399',
+          padding: '1px 5px',
+          borderRadius: 4,
+          fontSize: 8,
+          fontWeight: 800,
+        }}
+      >
+        {peer.inSameRoom ? 'ROOM' : `${(peer.distance / 20).toFixed(1)}m`}
+      </div>
+    </div>
+  );
+};
+
 // ── Main App Component ────────────────────────────────────────────────────────
 export const App: React.FC = () => {
   const [roomId, setRoomId] = useState<string>(() => {
@@ -370,6 +510,8 @@ export const App: React.FC = () => {
     isSpeaking,
     localStream,
     proximityPeers,
+    remoteVideoTracks,
+    liveKitConnected,
     toggleMic,
     toggleCam,
     toggleScreen,
@@ -567,6 +709,9 @@ export const App: React.FC = () => {
 
           case 'CHAT_BROADCAST': {
             if (msg.payload) {
+              const isSelf = msg.payload.senderId === selfIdRef.current;
+              if (isSelf) break; // Sender already handled optimistic render locally
+
               const incoming: ChatMessage = {
                 id: Math.random().toString(),
                 senderId: msg.payload.senderId,
@@ -1004,52 +1149,16 @@ export const App: React.FC = () => {
           </div>
         </div>
 
-        {/* Proximity Connected Peers */}
+        {/* Proximity Connected Peers with Live Video & Spatial Audio */}
         {activeProximityList.map((p) => {
           const remoteP = players[p.id];
           return (
-            <div
+            <RemotePeerCard
               key={p.id}
+              peer={p}
+              videoTrack={remoteVideoTracks[p.id]}
               onClick={() => remoteP && handleTeleportToPlayer(remoteP)}
-              className="glass-card"
-              title={`Click to Warp to ${p.name}`}
-              style={{
-                position: 'relative',
-                width: 140,
-                height: 90,
-                borderRadius: 18,
-                overflow: 'hidden',
-                border: p.gain > 0.8 ? '2px solid rgba(16, 185, 129, 0.6)' : '1px solid rgba(255, 255, 255, 0.15)',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                background: '#090d16',
-                flexShrink: 0,
-                cursor: 'pointer',
-                transition: 'transform 0.15s ease',
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.05)')}
-              onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
-            >
-              <div style={{ width: 38, height: 38, borderRadius: '50%', background: p.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 800, fontSize: 15 }}>
-                {p.name.charAt(0).toUpperCase()}
-              </div>
-              <div style={{ marginTop: 2, fontSize: 11, fontWeight: 700, color: '#f8fafc', maxWidth: 110, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {p.name}
-              </div>
-
-              <div style={{ position: 'absolute', bottom: 4, left: 6, display: 'flex', alignItems: 'center', gap: 4, background: 'rgba(0,0,0,0.7)', padding: '2px 6px', borderRadius: 6, backdropFilter: 'blur(4px)' }}>
-                <i className="fas fa-volume-up text-emerald-400" style={{ fontSize: 9 }}></i>
-                <span style={{ fontSize: 9, fontWeight: 600, color: '#a7f3d0' }}>
-                  {Math.round(p.gain * 100)}%
-                </span>
-              </div>
-
-              <div style={{ position: 'absolute', top: 4, right: 6, background: p.inSameRoom ? 'rgba(99, 102, 241, 0.3)' : 'rgba(16, 185, 129, 0.3)', color: p.inSameRoom ? '#a5b4fc' : '#34d399', padding: '1px 5px', borderRadius: 4, fontSize: 8, fontWeight: 800 }}>
-                {p.inSameRoom ? 'ROOM' : `${(p.distance / 20).toFixed(1)}m`}
-              </div>
-            </div>
+            />
           );
         })}
       </div>

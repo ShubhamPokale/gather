@@ -1,9 +1,18 @@
 // client/src/hooks/useLiveKit.ts
 // Robust Real-Time Proximity Video & Audio Engine with LiveKit Cloud integration,
-// Local Media Stream Fallback, and Web Audio Voice Activity Detection.
+// Remote Track Auto-Attachment, Spatial Volume Attenuation, and Local Media Stream Fallback.
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Room, RemoteParticipant, RemoteTrackPublication, RemoteAudioTrack, Track } from 'livekit-client';
+import {
+  Room,
+  RoomEvent,
+  RemoteParticipant,
+  RemoteTrackPublication,
+  RemoteAudioTrack,
+  RemoteVideoTrack,
+  Track,
+  Participant,
+} from 'livekit-client';
 import mapData from '../mapData.json';
 import { PlayerState } from '../types';
 import { getDistance } from '../utils/math';
@@ -26,6 +35,7 @@ export interface ProximityPeer {
   isBroadcast: boolean;
   canHear: boolean;
   canSee: boolean;
+  isSpeaking?: boolean;
 }
 
 const PROXIMITY_RADIUS = 165;
@@ -39,17 +49,20 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [proximityPeers, setProximityPeers] = useState<Record<string, ProximityPeer>>({});
+  const [speakingPeers, setSpeakingPeers] = useState<Set<string>>(new Set());
+  const [remoteVideoTracks, setRemoteVideoTracks] = useState<Record<string, RemoteVideoTrack>>({});
+  const [liveKitConnected, setLiveKitConnected] = useState(false);
 
   const localStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const animFrameRef = useRef<number | null>(null);
+  const remoteAudioElements = useRef<Map<string, HTMLAudioElement>>(new Map());
 
-  // Initialize Local Media Stream
+  // Initialize Local Media Stream (Webcam & Microphone)
   const getOrCreateLocalStream = async (video: boolean, audio: boolean): Promise<MediaStream | null> => {
     try {
       if (localStreamRef.current) {
-        // If we already have tracks, enable/disable them
         const vTracks = localStreamRef.current.getVideoTracks();
         vTracks.forEach((t) => (t.enabled = video));
         const aTracks = localStreamRef.current.getAudioTracks();
@@ -111,7 +124,9 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
     if (room && room.localParticipant) {
       try {
         await room.localParticipant.setMicrophoneEnabled(nextState);
-      } catch {}
+      } catch (err) {
+        console.warn('[LiveKit] Mic publish notice:', err);
+      }
     }
 
     if (localStreamRef.current) {
@@ -130,7 +145,9 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
     if (room && room.localParticipant) {
       try {
         await room.localParticipant.setCameraEnabled(nextState);
-      } catch {}
+      } catch (err) {
+        console.warn('[LiveKit] Camera publish notice:', err);
+      }
     }
 
     if (localStreamRef.current) {
@@ -149,7 +166,9 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
     if (room && room.localParticipant) {
       try {
         await room.localParticipant.setScreenShareEnabled(nextState);
-      } catch {}
+      } catch (err) {
+        console.warn('[LiveKit] Screen share notice:', err);
+      }
     }
     setIsScreenOn(nextState);
   }, [isScreenOn]);
@@ -158,27 +177,82 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
   useEffect(() => {
     if (!url || !token) return;
 
-    if (url === 'wss://your-project.livekit.cloud') {
+    if (url.includes('your-project.livekit.cloud') || token === 'placeholder') {
       return;
     }
 
-    const room = new Room({ adaptiveStream: true, dynacast: true });
+    const room = new Room({
+      adaptiveStream: true,
+      dynacast: true,
+      audioCaptureDefaults: {
+        autoGainControl: true,
+        echoCancellation: true,
+        noiseSuppression: true,
+      },
+    });
     roomRef.current = room;
+
+    // Track Subscribed Event (Remote Audio & Video)
+    room.on(RoomEvent.TrackSubscribed, (track: Track, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+      if (track.kind === Track.Kind.Audio) {
+        const audioEl = track.attach() as HTMLAudioElement;
+        audioEl.autoplay = true;
+        remoteAudioElements.current.set(participant.identity, audioEl);
+      } else if (track.kind === Track.Kind.Video) {
+        setRemoteVideoTracks((prev) => ({
+          ...prev,
+          [participant.identity]: track as RemoteVideoTrack,
+        }));
+      }
+    });
+
+    // Track Unsubscribed Event
+    room.on(RoomEvent.TrackUnsubscribed, (track: Track, _pub: RemoteTrackPublication, participant: RemoteParticipant) => {
+      track.detach();
+      if (track.kind === Track.Kind.Audio) {
+        remoteAudioElements.current.delete(participant.identity);
+      } else if (track.kind === Track.Kind.Video) {
+        setRemoteVideoTracks((prev) => {
+          const updated = { ...prev };
+          delete updated[participant.identity];
+          return updated;
+        });
+      }
+    });
+
+    // Active Speakers Changed
+    room.on(RoomEvent.ActiveSpeakersChanged, (speakers: Participant[]) => {
+      const activeIds = new Set(speakers.map((s) => s.identity));
+      setSpeakingPeers(activeIds);
+    });
+
+    // Disconnected
+    room.on(RoomEvent.Disconnected, () => {
+      setLiveKitConnected(false);
+      remoteAudioElements.current.forEach((el) => el.remove());
+      remoteAudioElements.current.clear();
+      setRemoteVideoTracks({});
+    });
 
     (async () => {
       try {
         await room.connect(url, token);
+        setLiveKitConnected(true);
+        console.log('[LiveKit] Successfully connected to room:', room.name);
       } catch (err) {
-        console.warn('[LiveKit] Connection notice:', err);
+        console.warn('[LiveKit] Connection fallback notice:', err);
       }
     })();
 
     return () => {
       room.disconnect();
+      setLiveKitConnected(false);
+      remoteAudioElements.current.forEach((el) => el.remove());
+      remoteAudioElements.current.clear();
     };
   }, [url, token]);
 
-  // Recompute per-peer proximity, audio falloff, and room isolation
+  // Recompute per-peer proximity, spatial audio falloff, and room acoustic isolation
   useEffect(() => {
     if (!localPlayer) return;
 
@@ -223,14 +297,22 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
         isBroadcast,
         canHear,
         canSee,
+        isSpeaking: speakingPeers.has(peer.id),
       };
+
+      // Dynamically apply gain to remote audio elements
+      const audioEl = remoteAudioElements.current.get(peer.id);
+      if (audioEl) {
+        audioEl.volume = canHear ? gain : 0;
+        audioEl.muted = !canHear || gain === 0;
+      }
     });
 
     setProximityPeers(peerMap);
 
     // Apply LiveKit remote track volume & video subscriptions
     const room = roomRef.current;
-    if (room) {
+    if (room && liveKitConnected) {
       room.remoteParticipants.forEach((participant: RemoteParticipant) => {
         const pInfo = peerMap[participant.identity];
         if (!pInfo) return;
@@ -245,7 +327,7 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
         });
       });
     }
-  }, [players, localPlayer]);
+  }, [players, localPlayer, speakingPeers, liveKitConnected]);
 
   useEffect(() => {
     return () => {
@@ -265,6 +347,8 @@ export function useLiveKit({ url, token, players, localPlayer }: UseLiveKitParam
     isSpeaking,
     localStream,
     proximityPeers,
+    remoteVideoTracks,
+    liveKitConnected,
     toggleMic,
     toggleCam,
     toggleScreen,

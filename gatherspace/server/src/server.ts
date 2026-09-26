@@ -31,18 +31,33 @@ const sessions = new Map<WebSocket, Session>();
 const HOST = process.env.HOST || '0.0.0.0';
 const wss = new WebSocketServer({ port: PORT, host: HOST });
 
+function isLiveKitConfigured(): boolean {
+  if (!LIVEKIT_URL || LIVEKIT_URL.includes('your-project.livekit.cloud')) return false;
+  if (!LIVEKIT_API_KEY || LIVEKIT_API_KEY === 'devkey') return false;
+  if (!LIVEKIT_API_SECRET || LIVEKIT_API_SECRET === 'secret' || LIVEKIT_API_SECRET.includes('•') || LIVEKIT_API_SECRET.length < 10) return false;
+  return true;
+}
+
 async function createLiveKitToken(
   roomId: string,
   participantIdentity: string,
   participantName: string
-): Promise<string> {
-  const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
-    identity: participantIdentity,
-    name: participantName,
-    ttl: '6h',
-  });
-  at.addGrant({ roomJoin: true, room: roomId, canPublish: true, canSubscribe: true });
-  return await at.toJwt();
+): Promise<string | null> {
+  if (!isLiveKitConfigured()) {
+    return null;
+  }
+  try {
+    const at = new AccessToken(LIVEKIT_API_KEY, LIVEKIT_API_SECRET, {
+      identity: participantIdentity,
+      name: participantName,
+      ttl: '6h',
+    });
+    at.addGrant({ roomJoin: true, room: roomId, canPublish: true, canSubscribe: true });
+    return await at.toJwt();
+  } catch (err) {
+    console.error('[LiveKit] Token creation error:', err);
+    return null;
+  }
 }
 
 function broadcastToRoom(roomId: string, msg: ServerMessage, excludeWs?: WebSocket) {
@@ -95,10 +110,12 @@ wss.on('connection', (ws: WebSocket) => {
       const playersObject: Record<string, PlayerState> = {};
       roomPlayers.forEach((val, key) => (playersObject[key] = val));
 
+      const effectiveLiveKitUrl = isLiveKitConfigured() ? LIVEKIT_URL : null;
+
       ws.send(
         JSON.stringify({
           type: 'INIT_STATE',
-          payload: { selfId: playerId, liveKitToken, liveKitUrl: LIVEKIT_URL, players: playersObject },
+          payload: { selfId: playerId, liveKitToken, liveKitUrl: effectiveLiveKitUrl, players: playersObject },
         } as ServerMessage)
       );
 
@@ -133,16 +150,20 @@ wss.on('connection', (ws: WebSocket) => {
       const player = rooms.get(session.roomId)?.get(session.playerId);
       if (!player) return;
 
-      broadcastToRoom(session.roomId, {
-        type: 'CHAT_BROADCAST',
-        payload: {
-          senderId: session.playerId,
-          senderName: player.name,
-          scope: msg.payload.scope,
-          text: msg.payload.text,
-          timestamp: Date.now(),
+      broadcastToRoom(
+        session.roomId,
+        {
+          type: 'CHAT_BROADCAST',
+          payload: {
+            senderId: session.playerId,
+            senderName: player.name,
+            scope: msg.payload.scope,
+            text: msg.payload.text,
+            timestamp: Date.now(),
+          },
         },
-      });
+        ws
+      );
       return;
     }
   });
