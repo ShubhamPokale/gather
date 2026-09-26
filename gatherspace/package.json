@@ -1,0 +1,13 @@
+{
+  "name": "gatherspace",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GatherSpace 2D Spatial Virtual Office",
+  "scripts": {
+    "dev": "npx --yes concurrently -k -n \"server,client\" -c \"blue,cyan\" \"npm run dev --prefix server\" \"npm run dev --prefix client\"",
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build": "npm run build --prefix server && npm run build --prefix client",
+    "start": "node server/dist/server.js"
+  }
+}

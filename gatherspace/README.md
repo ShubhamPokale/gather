@@ -6,32 +6,46 @@ Browser-based 2D spatial virtual office. Walk around with WASD/arrows, get autom
 
 ### Prerequisites
 - Node.js 18+
-- (Optional) [LiveKit Cloud](https://cloud.livekit.io) free account for real A/V
+- (Optional) [LiveKit Cloud](https://cloud.livekit.io) free account for real WebRTC A/V
 
-### 1. Server
+### 🚀 One-Command Start (Both Server & Client)
+
+From the `gatherspace/` directory:
 
 ```bash
-cd server
-npm install
-# Edit .env with your LiveKit credentials (or leave placeholders to skip A/V)
 npm run dev
 ```
 
-Server runs on `http://localhost:8080`.
+This concurrently starts:
+- **Signaling Server:** `http://localhost:8080` (WebSocket on port 8080)
+- **Vite Client:** `http://localhost:5173/?room=office-1` (and across your LAN via `http://<YOUR_IP>:5173/?room=office-1`)
 
-### 2. Client
+---
 
+### Starting Independently (Optional)
+
+**Terminal 1 (Backend Server):**
+```bash
+cd server
+npm install
+npm run dev
+```
+
+**Terminal 2 (Frontend Client):**
 ```bash
 cd client
 npm install
 npm run dev
 ```
 
-Open `http://localhost:5173/?room=office-1`
+---
 
-### 3. Test with multiple users
+### 👥 Sharing Links & Multiplayer Testing
 
-Open multiple browser tabs at the same URL. Each tab is an independent player. Walk near each other to trigger proximity audio.
+1. Open `http://localhost:5173/?room=office-1` (or click **🎲 Random** in the join screen to create a custom room like `#engineering-pod`).
+2. Click the **Invite** button in the top HUD (or copy the URL from your browser).
+3. Open the copied link in another browser tab, an Incognito window, or on another computer on the same network.
+4. Both users will spawn in the same office space with real-time movement, proximity radar, floating reaction bubbles, spatial audio/video, and interactive whiteboards!
 
 ---
 

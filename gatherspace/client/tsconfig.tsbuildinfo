@@ -1,0 +1,1 @@
+{"root":["./src/app.tsx","./src/main.tsx","./src/types.ts","./src/components/arcademodal.tsx","./src/components/canvasview.tsx","./src/components/minimap.tsx","./src/components/whiteboardmodal.tsx","./src/hooks/uselivekit.ts","./src/utils/audio.ts","./src/utils/math.ts","../shared/types.ts"],"version":"5.9.3"}

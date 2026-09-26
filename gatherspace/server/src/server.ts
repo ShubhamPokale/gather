@@ -28,7 +28,8 @@ interface Session {
 const rooms = new Map<string, Map<string, PlayerState>>();
 const sessions = new Map<WebSocket, Session>();
 
-const wss = new WebSocketServer({ port: PORT });
+const HOST = process.env.HOST || '0.0.0.0';
+const wss = new WebSocketServer({ port: PORT, host: HOST });
 
 async function createLiveKitToken(
   roomId: string,
@@ -66,7 +67,9 @@ wss.on('connection', (ws: WebSocket) => {
     }
 
     if (msg.type === 'JOIN') {
-      const { roomId, name, color, hairColor } = msg.payload;
+      const rawRoomId = msg.payload.roomId || 'office-1';
+      const roomId = rawRoomId.trim().toLowerCase().replace(/^#/, '') || 'office-1';
+      const { name, color, hairColor } = msg.payload;
 
       if (!rooms.has(roomId)) rooms.set(roomId, new Map());
       const roomPlayers = rooms.get(roomId)!;
@@ -76,15 +79,16 @@ wss.on('connection', (ws: WebSocket) => {
         name,
         color,
         hairColor,
-        x: 900 + (Math.random() * 40 - 20),
-        y: 600 + (Math.random() * 40 - 20),
+        x: 420 + (Math.random() * 50 - 25),
+        y: 420 + (Math.random() * 50 - 25),
         dir: 'down',
         isMoving: false,
-        zoneId: null,
+        zoneId: 'lobby',
       };
 
       roomPlayers.set(playerId, initialPlayer);
       sessions.set(ws, { ws, playerId, roomId });
+      console.log(`[Room ${roomId}] Player joined: ${name} (${playerId}), Total in room: ${roomPlayers.size}`);
 
       const liveKitToken = await createLiveKitToken(roomId, playerId, name);
 

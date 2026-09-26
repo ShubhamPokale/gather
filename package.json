@@ -1,0 +1,12 @@
+{
+  "name": "gather-root",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GatherSpace Virtual Office Root",
+  "scripts": {
+    "dev": "npx --yes concurrently -k -n \"server,client\" -c \"blue,cyan\" \"npm run dev --prefix gatherspace/server\" \"npm run dev --prefix gatherspace/client\"",
+    "dev:server": "npm run dev --prefix gatherspace/server",
+    "dev:client": "npm run dev --prefix gatherspace/client",
+    "build": "npm run build --prefix gatherspace/server && npm run build --prefix gatherspace/client"
+  }
+}
