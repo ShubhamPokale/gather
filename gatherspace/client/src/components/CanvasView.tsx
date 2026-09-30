@@ -7,6 +7,8 @@ import mapData from '../mapData.json';
 import { PlayerState, Direction } from '../types';
 import { resolveMovement, getPlayerZone } from '../utils/math';
 import { soundFX } from '../utils/audio';
+import { lofiEngine } from '../utils/lofiAudio';
+import { youtubeAudio } from '../utils/youtubeAudio';
 
 interface SpeechBubble {
   playerId: string;
@@ -44,6 +46,7 @@ interface Particle {
   size: number;
   color: string;
   life: number;
+  symbol?: string;
 }
 
 interface CanvasViewProps {
@@ -387,6 +390,39 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
         onInteractPromptRef.current(promptText, promptKey || undefined);
       }
 
+      // Update ambient spatial Lo-Fi and YouTube audio engines
+      lofiEngine.updateSpatialPosition(localPos.current.x, localPos.current.y, localPos.current.zoneId);
+      youtubeAudio.updateSpatialPosition(localPos.current.x, localPos.current.y, localPos.current.zoneId);
+
+      // Ambient coffee steam particles over espresso bar
+      if (Math.random() < 0.22) {
+        particles.current.push({
+          x: 1240 + (Math.random() * 40 - 20),
+          y: 1255,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: -0.6 - Math.random() * 0.5,
+          alpha: 0.45,
+          size: Math.random() * 3 + 2,
+          color: '#ffffff',
+          life: 38,
+        });
+      }
+
+      // Ambient floating musical notes in chill lounge
+      if ((localPos.current.zoneId === 'coffee_lounge' || localPos.current.zoneId === 'gaming_corner') && Math.random() < 0.06) {
+        particles.current.push({
+          x: localPos.current.x + (Math.random() * 60 - 30),
+          y: localPos.current.y - 10,
+          vx: (Math.random() - 0.5) * 0.4,
+          vy: -0.8 - Math.random() * 0.4,
+          alpha: 0.8,
+          size: 11,
+          color: '#fbbf24',
+          life: 45,
+          symbol: Math.random() < 0.5 ? '♪' : '♫',
+        });
+      }
+
       // ── 2. Smooth Lerp Camera System ─────────────────────────────────────
       const W = canvas.width;
       const H = canvas.height;
@@ -698,22 +734,29 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
         ctx.restore();
       });
 
-      // ── 8. Footstep & Teleport Warp Particles ────────────────────────────
+      // ── 8. Footstep, Steam & Music Note Particles ──────────────────────────
       particles.current.forEach((pt) => {
         pt.x += pt.vx;
         pt.y += pt.vy;
         pt.life -= 1;
-        pt.alpha *= 0.92;
+        pt.alpha *= 0.94;
 
         ctx.save();
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = pt.alpha;
-        ctx.fill();
+        ctx.globalAlpha = Math.max(0, Math.min(1, pt.alpha));
+        if (pt.symbol) {
+          ctx.font = 'bold 14px sans-serif';
+          ctx.fillStyle = pt.color;
+          ctx.textAlign = 'center';
+          ctx.fillText(pt.symbol, pt.x, pt.y);
+        } else {
+          ctx.beginPath();
+          ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
+          ctx.fillStyle = pt.color;
+          ctx.fill();
+        }
         ctx.restore();
       });
-      particles.current = particles.current.filter((pt) => pt.life > 0);
+      particles.current = particles.current.filter((pt) => pt.life > 0 && pt.alpha > 0.02);
 
       // Warp shockwave rings
       warpEffects.current.forEach((w) => {

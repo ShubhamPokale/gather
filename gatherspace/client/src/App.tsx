@@ -7,6 +7,8 @@ import { CanvasView } from './components/CanvasView';
 import { MiniMap } from './components/MiniMap';
 import { WhiteboardModal } from './components/WhiteboardModal';
 import { ArcadeModal } from './components/ArcadeModal';
+import { LandingPage } from './components/LandingPage';
+import { JukeboxWidget } from './components/JukeboxWidget';
 import { RemoteVideoTrack } from 'livekit-client';
 import { useLiveKit, ProximityPeer } from './hooks/useLiveKit';
 import { PlayerState, Direction, ServerMessage, ClientMessage } from './types';
@@ -946,6 +948,31 @@ export const App: React.FC = () => {
     }
   };
 
+  // Hotkeys 1-6 for quick reactions during meetings
+  useEffect(() => {
+    if (phase !== 'playing') return;
+    const handleNumberKey = (e: KeyboardEvent) => {
+      const activeTag = (document.activeElement?.tagName || '').toLowerCase();
+      if (activeTag === 'input' || activeTag === 'textarea') return;
+
+      const reactionMap: Record<string, string> = {
+        '1': '❤️',
+        '2': '🎉',
+        '3': '☕',
+        '4': '🔥',
+        '5': '🚀',
+        '6': '👏',
+      };
+
+      if (reactionMap[e.key]) {
+        triggerReaction(reactionMap[e.key]);
+      }
+    };
+
+    window.addEventListener('keydown', handleNumberKey);
+    return () => window.removeEventListener('keydown', handleNumberKey);
+  }, [phase, selfId]);
+
   const handleCopyInvite = () => {
     const inviteUrl = `${window.location.origin}${window.location.pathname}?room=${roomId}`;
     navigator.clipboard.writeText(inviteUrl);
@@ -955,7 +982,7 @@ export const App: React.FC = () => {
   };
 
   if (phase === 'join') {
-    return <JoinModal initialRoomId={roomId} onJoin={handleJoin} />;
+    return <LandingPage initialRoomId={roomId} onLaunch={handleJoin} />;
   }
 
   if (phase === 'connecting') {
@@ -973,6 +1000,9 @@ export const App: React.FC = () => {
 
   return (
     <div className="game-wrapper" style={{ position: 'relative', width: '100vw', height: '100vh', overflow: 'hidden', background: '#020617' }}>
+      {/* ── Ambient Spatial Lo-Fi Jukebox Controller ─────────────────── */}
+      <JukeboxWidget currentZone={localPlayer.zoneId} />
+
       {/* ── 2D Spatial Canvas ────────────────────────────────────────── */}
       <CanvasView
         localPlayer={localPlayer}
