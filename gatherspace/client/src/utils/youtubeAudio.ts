@@ -52,7 +52,7 @@ class YouTubeAudioEngine {
   private isApiReady: boolean = false;
   private isPlaying: boolean = false;
   private currentTrack: StreamTrack = FALLBACK_TRACK;
-  private masterVolume: number = 0.8; // 0.0 to 1.0
+  private masterVolume: number = 0.30; // 30% default master volume
   private spatialMultiplier: number = 0.0; // 0.0 to 1.0
   private containerId = 'gatherspace-yt-player-container';
   private hasUserInteracted: boolean = false;
@@ -338,22 +338,42 @@ class YouTubeAudioEngine {
 
   // Update spatial volume attenuation based on player's position in the office
   public updateSpatialPosition(playerX: number, playerY: number, inZoneId: string | null) {
+    // Strictly silenced inside soundproof meeting suites
+    if (inZoneId === 'room_a' || inZoneId === 'room_b') {
+      if (this.spatialMultiplier !== 0) {
+        this.spatialMultiplier = 0;
+        this.updatePlayerVolume();
+      }
+      return;
+    }
+
     let targetMultiplier = 0;
 
-    // Full volume inside Tea/Coffee Lounge or Gaming Corner
+    // Full presence inside Tea & Coffee Lounge, quiet subtle presence in Reception
     if (inZoneId === 'coffee_lounge' || inZoneId === 'gaming_corner') {
       targetMultiplier = 1.0;
+    } else if (inZoneId === 'reception') {
+      targetMultiplier = 0.16; // Low subtle background ambient in welcome lobby & reception
     } else {
-      // Distance calculation from Lounge Jukebox center (x: 1250, y: 1330)
-      const loungeX = 1250;
-      const loungeY = 1330;
-      const radius = 550;
+      // Acoustic hubs across the office
+      const emitters = [
+        { x: 425, y: 310, radius: 420, maxMult: 0.16 },  // Welcome Lobby (low subtle volume)
+        { x: 1250, y: 1330, radius: 620, maxMult: 1.0 }, // Tea & Coffee Lounge Jukebox
+        { x: 2015, y: 1085, radius: 520, maxMult: 0.85 }, // Chill Gaming Corner
+      ];
 
-      const dist = Math.hypot(playerX - loungeX, playerY - loungeY);
-      if (dist < radius) {
-        const linear = Math.max(0, 1 - dist / radius);
-        // Smooth acoustic curve
-        targetMultiplier = Math.pow(linear, 1.35);
+      for (const em of emitters) {
+        const dist = Math.hypot(playerX - em.x, playerY - em.y);
+        if (dist < em.radius) {
+          const linear = Math.max(0, 1 - dist / em.radius);
+          const val = Math.pow(linear, 1.25) * em.maxMult;
+          if (val > targetMultiplier) targetMultiplier = val;
+        }
+      }
+
+      // Soft ambient background floor volume in open coworking area
+      if (targetMultiplier < 0.14 && (inZoneId === 'coworking' || !inZoneId)) {
+        targetMultiplier = 0.14;
       }
     }
 
@@ -362,7 +382,7 @@ class YouTubeAudioEngine {
       this.spatialMultiplier = targetMultiplier;
       this.updatePlayerVolume();
 
-      // If user walked into lounge and hasn't started playing, auto-play if permitted
+      // If user walked into active audio zone and hasn't started playing, auto-play if permitted
       if (targetMultiplier > 0.1 && !this.isPlaying && this.hasUserInteracted) {
         this.play();
       }

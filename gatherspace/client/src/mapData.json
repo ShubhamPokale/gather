@@ -128,7 +128,7 @@
     { "type": "work_desk", "x": 1300, "y": 220, "w": 280, "h": 100, "label": "Engineering Pod 2" },
     { "type": "work_desk", "x": 920, "y": 420, "w": 280, "h": 100, "label": "Product & Growth" },
     { "type": "work_desk", "x": 1300, "y": 420, "w": 280, "h": 100, "label": "Design Systems" },
-    { "type": "whiteboard_item", "x": 1140, "y": 840, "w": 220, "h": 48, "label": "Whiteboard Station" },
+    { "type": "whiteboard_item", "x": 1110, "y": 840, "w": 280, "h": 52, "label": "Collaborative Whiteboard" },
     { "type": "coffee_bar", "x": 1120, "y": 1250, "w": 260, "h": 75, "label": "Chai & Espresso Bar" },
     { "type": "podium_stand", "x": 1960, "y": 170, "w": 110, "h": 60, "label": "Speaker Podium" },
     { "type": "arcade", "x": 1780, "y": 730, "w": 100, "h": 70, "label": "Arcade 1" },

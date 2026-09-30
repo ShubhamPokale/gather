@@ -390,8 +390,8 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
         onInteractPromptRef.current(promptText, promptKey || undefined);
       }
 
-      // Update ambient spatial Lo-Fi and YouTube audio engines
-      lofiEngine.updateSpatialPosition(localPos.current.x, localPos.current.y, localPos.current.zoneId);
+      // Update spatial YouTube audio engine (static LoFi synthesizer commented out)
+      // lofiEngine.updateSpatialPosition(localPos.current.x, localPos.current.y, localPos.current.zoneId);
       youtubeAudio.updateSpatialPosition(localPos.current.x, localPos.current.y, localPos.current.zoneId);
 
       // Ambient coffee steam particles over espresso bar
@@ -524,24 +524,25 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
           ctx.fillRect(zone.x, zone.y, zone.w, zone.h);
         }
 
-        // Zone Signage Plaque
-        const plaqueW = 240;
-        const plaqueH = 26;
-        const plaqueX = zone.x + 30;
-        const plaqueY = zone.y + 14;
+        // Zone Signage Plaque (Crisp, High Contrast & Readable)
+        ctx.font = '700 13px "Plus Jakarta Sans", sans-serif';
+        const labelWidth = ctx.measureText(zone.label).width;
+        const plaqueW = labelWidth + 32;
+        const plaqueH = 32;
+        const plaqueX = zone.x + 24;
+        const plaqueY = zone.y + 16;
 
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+        ctx.fillStyle = 'rgba(10, 13, 20, 0.95)';
         ctx.beginPath();
         ctx.roundRect(plaqueX, plaqueY, plaqueW, plaqueH, 8);
         ctx.fill();
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.18)';
-        ctx.lineWidth = 1;
+        ctx.strokeStyle = zone.borderColor || 'rgba(255, 255, 255, 0.25)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
         ctx.fillStyle = '#f8fafc';
         ctx.textAlign = 'left';
-        ctx.fillText(zone.label, plaqueX + 12, plaqueY + 18);
+        ctx.fillText(zone.label, plaqueX + 16, plaqueY + 21);
 
         ctx.restore();
       });
@@ -645,43 +646,47 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
           ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 10);
           ctx.fill();
           ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
+          // Sticky notes swatches
           ctx.fillStyle = '#fef08a';
-          ctx.fillRect(obs.x + 16, obs.y + 14, 18, 18);
+          ctx.fillRect(obs.x + 12, obs.y + 16, 14, 18);
           ctx.fillStyle = '#bbf7d0';
-          ctx.fillRect(obs.x + 40, obs.y + 14, 18, 18);
+          ctx.fillRect(obs.x + 32, obs.y + 16, 14, 18);
           ctx.fillStyle = '#fecdd3';
-          ctx.fillRect(obs.x + 64, obs.y + 14, 18, 18);
+          ctx.fillRect(obs.x + 52, obs.y + 16, 14, 18);
 
-          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = '#38bdf8';
-          ctx.fillText('COLLABORATIVE WHITEBOARD (E)', obs.x + 92, obs.y + 30);
+          ctx.textAlign = 'left';
+          ctx.fillText('COLLABORATIVE WHITEBOARD (E)', obs.x + 76, obs.y + obs.h / 2 + 4);
         } else if (obs.type === 'coffee_bar') {
           ctx.fillStyle = '#3e2723';
           ctx.beginPath();
           ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 12);
           ctx.fill();
           ctx.strokeStyle = '#8d6e63';
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
-          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.font = '700 12px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = '#fef3c7';
-          ctx.fillText('☕ CHAI & ESPRESSO BAR (E)', obs.x + 85, obs.y + 42);
+          ctx.textAlign = 'center';
+          ctx.fillText('☕ CHAI & ESPRESSO BAR (E)', obs.x + obs.w / 2, obs.y + 42);
         } else if (obs.type === 'podium_stand') {
           ctx.fillStyle = '#4a044e';
           ctx.beginPath();
           ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 8);
           ctx.fill();
           ctx.strokeStyle = '#c084fc';
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
-          ctx.font = 'bold 11px "Plus Jakarta Sans", sans-serif';
+          ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = '#f3e8ff';
-          ctx.fillText('📢 SPEAKER PODIUM (E)', obs.x + 18, obs.y + 36);
+          ctx.textAlign = 'center';
+          ctx.fillText('STAGE (E)', obs.x + obs.w / 2, obs.y + 35);
         } else if (obs.type === 'arcade') {
           ctx.fillStyle = '#064e3b';
           ctx.beginPath();
@@ -693,44 +698,47 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
           ctx.lineWidth = 2;
           ctx.stroke();
 
-          ctx.font = 'bold 10px "Plus Jakarta Sans", sans-serif';
+          ctx.font = '700 10px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = '#a7f3d0';
-          ctx.fillText('👾 RETRO ARCADE (E)', obs.x + 16, obs.y + obs.h - 10);
+          ctx.textAlign = 'center';
+          ctx.fillText('ARCADE (E)', obs.x + obs.w / 2, obs.y + obs.h - 10);
         } else if (obs.type === 'lounge_sofa') {
           ctx.fillStyle = '#1e1b4b';
           ctx.beginPath();
           ctx.roundRect(obs.x, obs.y, obs.w, obs.h, 18);
           ctx.fill();
           ctx.strokeStyle = '#6366f1';
-          ctx.lineWidth = 2.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
-          ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+          ctx.font = '700 12px "Plus Jakarta Sans", sans-serif';
           ctx.fillStyle = '#c7d2fe';
-          ctx.fillText('🛋️ RELAX LOUNGE', obs.x + 20, obs.y + obs.h / 2 + 4);
+          ctx.textAlign = 'center';
+          ctx.fillText('🛋️ RELAX LOUNGE', obs.x + obs.w / 2, obs.y + obs.h / 2 + 5);
         }
         ctx.restore();
       });
 
-      // ── 7. Biophilic Plants ──────────────────────────────────────────────
+      // ── 7. Architectural Potted Planters (Minimalist) ────────────────────
       PLANTS.forEach((p) => {
         ctx.save();
+        // Ceramic Pot Base
         ctx.beginPath();
         ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-        ctx.fillStyle = '#166534';
+        ctx.fillStyle = '#1e293b';
         ctx.fill();
-        ctx.strokeStyle = '#4ade80';
-        ctx.lineWidth = 2;
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.15)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
-        ctx.fillStyle = '#22c55e';
-        for (let a = 0; a < Math.PI * 2; a += Math.PI / 3) {
-          const lx = p.x + Math.cos(a) * (p.r * 0.7);
-          const ly = p.y + Math.sin(a) * (p.r * 0.7);
-          ctx.beginPath();
-          ctx.arc(lx, ly, p.r * 0.45, 0, Math.PI * 2);
-          ctx.fill();
-        }
+        // Subtle Foliage Core
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r * 0.65, 0, Math.PI * 2);
+        ctx.fillStyle = '#14532d';
+        ctx.fill();
+        ctx.strokeStyle = '#166534';
+        ctx.lineWidth = 1;
+        ctx.stroke();
         ctx.restore();
       });
 
@@ -875,51 +883,51 @@ export const CanvasView: React.FC<CanvasViewProps> = ({
           ctx.fillRect(px + 2, py - 8 + walkBob, 2.5, 3.5);
         }
 
-        // Nametag pill with status dot
-        ctx.font = '600 11px "Plus Jakarta Sans", sans-serif';
+        // Nametag pill with status dot (Large, Bold & Crisp)
+        ctx.font = '700 13px "Plus Jakarta Sans", sans-serif';
         ctx.textAlign = 'center';
         const textWidth = ctx.measureText(p.name).width;
-        const pillW = textWidth + 24;
-        const pillH = 20;
+        const pillW = textWidth + 32;
+        const pillH = 26;
         const pillX = px - pillW / 2;
-        const pillY = py - 38 + walkBob;
+        const pillY = py - 44 + walkBob;
 
-        ctx.fillStyle = isSelf ? 'rgba(99, 102, 241, 0.92)' : 'rgba(15, 23, 42, 0.9)';
+        ctx.fillStyle = isSelf ? 'rgba(99, 102, 241, 0.95)' : 'rgba(10, 13, 20, 0.92)';
         ctx.beginPath();
         ctx.roundRect(pillX, pillY, pillW, pillH, 8);
         ctx.fill();
-        ctx.strokeStyle = isSelf ? '#a5b4fc' : 'rgba(255, 255, 255, 0.2)';
-        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = isSelf ? '#a5b4fc' : 'rgba(255, 255, 255, 0.22)';
+        ctx.lineWidth = 1.5;
         ctx.stroke();
 
         // Online status dot
         ctx.beginPath();
-        ctx.arc(pillX + 10, pillY + 10, 3.5, 0, Math.PI * 2);
-        ctx.fillStyle = '#34d399';
+        ctx.arc(pillX + 12, pillY + 13, 4, 0, Math.PI * 2);
+        ctx.fillStyle = '#10b981';
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(p.name, px + 4, pillY + 14);
+        ctx.fillText(p.name, px + 5, pillY + 18);
 
-        // Interactive Prompt Pill
+        // Interactive Prompt Pill (High Contrast)
         if (isSelf && promptText) {
           ctx.save();
-          ctx.font = '700 11px "Plus Jakarta Sans", sans-serif';
-          const promptW = ctx.measureText(promptText).width + 24;
-          const promptH = 26;
+          ctx.font = '700 13px "Plus Jakarta Sans", sans-serif';
+          const promptW = ctx.measureText(promptText).width + 32;
+          const promptH = 32;
           const promptX = px - promptW / 2;
-          const promptY = py - 70 + walkBob;
+          const promptY = py - 84 + walkBob;
 
-          ctx.fillStyle = 'rgba(15, 23, 42, 0.95)';
+          ctx.fillStyle = 'rgba(10, 13, 20, 0.96)';
           ctx.beginPath();
-          ctx.roundRect(promptX, promptY, promptW, promptH, 12);
+          ctx.roundRect(promptX, promptY, promptW, promptH, 10);
           ctx.fill();
           ctx.strokeStyle = '#38bdf8';
-          ctx.lineWidth = 1.5;
+          ctx.lineWidth = 2;
           ctx.stroke();
 
           ctx.fillStyle = '#38bdf8';
-          ctx.fillText(promptText, px, promptY + 17);
+          ctx.fillText(promptText, px, promptY + 21);
           ctx.restore();
         }
 

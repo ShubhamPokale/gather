@@ -1015,21 +1015,21 @@ export const App: React.FC = () => {
 
       {/* ── TOP-LEFT: Space Identity, Space Switcher & Status Pill ───── */}
       <div style={{ position: 'fixed', top: 16, left: 16, zIndex: 40, display: 'flex', alignItems: 'center', gap: 10 }}>
-        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '8px 16px', borderRadius: 9999 }}>
-          <div style={{ width: 34, height: 34, borderRadius: 10, background: 'linear-gradient(135deg, #0284c7, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 14 }}>
+        <div className="glass-card" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '10px 18px', borderRadius: 9999 }}>
+          <div style={{ width: 38, height: 38, borderRadius: 10, background: 'linear-gradient(135deg, #0284c7, #6366f1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 16 }}>
             <i className="fas fa-building"></i>
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: 13, fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.02em' }}>GatherSpace HQ</span>
+              <span style={{ fontSize: 14, fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.02em' }}>GatherSpace HQ</span>
               <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#10b981', boxShadow: '0 0 10px #10b981' }} />
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#94a3b8' }}>
-              <span style={{ color: '#38bdf8', fontWeight: 600 }}>#{roomId}</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: '#cbd5e1', marginTop: 1 }}>
+              <span style={{ color: '#38bdf8', fontWeight: 700 }}>#{roomId}</span>
               <span>•</span>
-              <span>{zoneLabelFor(localPlayer.zoneId)}</span>
+              <span style={{ fontWeight: 600 }}>{zoneLabelFor(localPlayer.zoneId)}</span>
               <span>•</span>
-              <span>{onlineCount} {onlineCount === 1 ? 'Colleague' : 'Colleagues'}</span>
+              <span style={{ color: '#94a3b8' }}>{onlineCount} {onlineCount === 1 ? 'Colleague' : 'Colleagues'}</span>
             </div>
           </div>
 
@@ -1040,7 +1040,7 @@ export const App: React.FC = () => {
               setSpaceSwitcherOpen(true);
             }}
             title="Switch or Create Office Space"
-            style={{ padding: '6px 10px', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.3)', borderRadius: 9999, color: '#38bdf8', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 5, transition: 'all 0.15s ease' }}
+            style={{ padding: '7px 12px', background: 'rgba(56, 189, 248, 0.15)', border: '1px solid rgba(56, 189, 248, 0.4)', borderRadius: 9999, color: '#38bdf8', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s ease' }}
           >
             <i className="fas fa-door-open"></i> Space
           </button>
@@ -1048,7 +1048,7 @@ export const App: React.FC = () => {
           <button
             onClick={handleCopyInvite}
             title="Copy Direct Invite Link"
-            style={{ padding: '6px 12px', background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 9999, color: '#cbd5e1', fontSize: 11, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s ease' }}
+            style={{ padding: '7px 14px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 9999, color: '#f8fafc', fontSize: 12, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s ease' }}
           >
             <i className="fas fa-link"></i> Invite
           </button>

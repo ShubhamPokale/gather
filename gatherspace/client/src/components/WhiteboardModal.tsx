@@ -287,7 +287,7 @@ export const WhiteboardModal: React.FC<WhiteboardModalProps> = ({ isOpen, onClos
             background: 'rgba(15, 23, 42, 0.95)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, minWidth: 0 }}>
             <div
               style={{
                 width: 38,
@@ -299,18 +299,23 @@ export const WhiteboardModal: React.FC<WhiteboardModalProps> = ({ isOpen, onClos
                 justifyContent: 'center',
                 color: '#fff',
                 fontSize: 16,
+                flexShrink: 0,
               }}
             >
               <i className="fas fa-chalkboard"></i>
             </div>
-            <div>
-              <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#f8fafc', display: 'flex', alignItems: 'center', gap: 8 }}>
-                Collaborative Architecture Whiteboard
-                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', fontWeight: 600 }}>
-                  Interactive Station
+            <div style={{ minWidth: 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <span style={{ fontSize: 15, fontWeight: 700, color: '#f8fafc' }}>
+                  Architecture Whiteboard
                 </span>
-              </h2>
-              <p style={{ margin: 0, fontSize: 11, color: '#94a3b8' }}>Real-time sketching, sticky notes, and system diagramming for {userName}</p>
+                <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 9999, background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', fontWeight: 600 }}>
+                  Live Station
+                </span>
+              </div>
+              <p style={{ margin: 0, fontSize: 11, color: '#94a3b8', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                Real-time sketching & diagramming • {userName}
+              </p>
             </div>
           </div>
 
